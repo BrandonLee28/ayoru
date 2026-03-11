@@ -32,6 +32,7 @@ assert_contains "$WORKFLOW" "aarch64-apple-darwin"
 assert_contains "$WORKFLOW" "x86_64-apple-darwin"
 assert_contains "$WORKFLOW" "aarch64-unknown-linux-gnu"
 assert_contains "$WORKFLOW" "x86_64-unknown-linux-gnu"
+assert_contains "$WORKFLOW" "macos-15-intel"
 assert_contains "$WORKFLOW" 'rustup target add ${{ matrix.target }}'
 assert_contains "$WORKFLOW" 'cargo build --release --target ${{ matrix.target }}'
 assert_contains "$WORKFLOW" "tar -czf"
