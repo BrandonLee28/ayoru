@@ -4,8 +4,11 @@ use crate::core::models::{Episode, Title};
 pub enum Action {
     InsertChar(char),
     FocusSearch,
+    FocusNextPanel,
+    FocusPrevPanel,
     MoveUp,
     MoveDown,
+    ToggleFavorite,
     SubmitSearch,
     OpenSelectedTitle,
     PlaySelectedEpisode,
@@ -26,4 +29,5 @@ pub enum Effect {
     SearchTitles(String),
     LoadEpisodes(Title),
     PlayEpisode { title: Title, episode: Episode },
+    ToggleFavoriteForSelectedTitle,
 }

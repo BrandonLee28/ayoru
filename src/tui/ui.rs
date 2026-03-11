@@ -1,4 +1,4 @@
-use crate::tui::state::{Mode, TuiState};
+use crate::tui::state::{Mode, Panel, TuiState};
 use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Alignment;
@@ -25,17 +25,51 @@ pub fn render_to_buffer(state: &TuiState, width: u16, height: u16) -> Buffer {
 
 pub fn render(state: &TuiState, area: Rect, buffer: &mut Buffer) {
     let view = build_view(state, area);
+    let content_sections =
+        Layout::horizontal([Constraint::Percentage(68), Constraint::Percentage(32)])
+            .split(view.sections[1]);
+    let rail_sections = Layout::vertical([
+        Constraint::Percentage(34),
+        Constraint::Percentage(33),
+        Constraint::Percentage(33),
+    ])
+    .split(content_sections[1]);
+
     Paragraph::new(view.header)
-        .block(styled_block(""))
+        .block(styled_block("", state.focused_panel == Panel::Search))
         .alignment(Alignment::Left)
         .style(Style::default().fg(WARM_SILVER).bg(GRAPHITE))
         .render(view.sections[0], buffer);
     Paragraph::new(view.body)
-        .block(styled_block(&view.body_title))
+        .block(styled_block(
+            &view.body_title,
+            state.focused_panel == Panel::Main,
+        ))
         .style(Style::default().fg(WARM_SILVER).bg(SOFT_CHARCOAL))
-        .render(view.sections[1], buffer);
+        .render(content_sections[0], buffer);
+    Paragraph::new(recent_lines(state))
+        .block(styled_block(
+            "Recently watched",
+            state.focused_panel == Panel::ContextRail,
+        ))
+        .style(Style::default().fg(WARM_SILVER).bg(SOFT_CHARCOAL))
+        .render(rail_sections[0], buffer);
+    Paragraph::new(favorite_lines(state))
+        .block(styled_block(
+            "Favorites",
+            state.focused_panel == Panel::ContextRail,
+        ))
+        .style(Style::default().fg(WARM_SILVER).bg(SOFT_CHARCOAL))
+        .render(rail_sections[1], buffer);
+    Paragraph::new(history_lines(state))
+        .block(styled_block(
+            "History",
+            state.focused_panel == Panel::ContextRail,
+        ))
+        .style(Style::default().fg(WARM_SILVER).bg(SOFT_CHARCOAL))
+        .render(rail_sections[2], buffer);
     Paragraph::new(view.footer)
-        .block(styled_block("Status"))
+        .block(styled_block("Status", false))
         .style(Style::default().fg(QUIET_GRAY).bg(GRAPHITE))
         .render(view.sections[2], buffer);
 }
@@ -43,21 +77,60 @@ pub fn render(state: &TuiState, area: Rect, buffer: &mut Buffer) {
 pub fn draw(frame: &mut Frame<'_>, state: &TuiState) {
     let area = frame.area();
     let view = build_view(state, area);
+    let content_sections =
+        Layout::horizontal([Constraint::Percentage(68), Constraint::Percentage(32)])
+            .split(view.sections[1]);
+    let rail_sections = Layout::vertical([
+        Constraint::Percentage(34),
+        Constraint::Percentage(33),
+        Constraint::Percentage(33),
+    ])
+    .split(content_sections[1]);
     frame.render_widget(
         Paragraph::new(view.header)
-            .block(styled_block(""))
+            .block(styled_block("", state.focused_panel == Panel::Search))
             .style(Style::default().fg(WARM_SILVER).bg(GRAPHITE)),
         view.sections[0],
     );
     frame.render_widget(
         Paragraph::new(view.body)
-            .block(styled_block(&view.body_title))
+            .block(styled_block(
+                &view.body_title,
+                state.focused_panel == Panel::Main,
+            ))
             .style(Style::default().fg(WARM_SILVER).bg(SOFT_CHARCOAL)),
-        view.sections[1],
+        content_sections[0],
+    );
+    frame.render_widget(
+        Paragraph::new(recent_lines(state))
+            .block(styled_block(
+                "Recently watched",
+                state.focused_panel == Panel::ContextRail,
+            ))
+            .style(Style::default().fg(WARM_SILVER).bg(SOFT_CHARCOAL)),
+        rail_sections[0],
+    );
+    frame.render_widget(
+        Paragraph::new(favorite_lines(state))
+            .block(styled_block(
+                "Favorites",
+                state.focused_panel == Panel::ContextRail,
+            ))
+            .style(Style::default().fg(WARM_SILVER).bg(SOFT_CHARCOAL)),
+        rail_sections[1],
+    );
+    frame.render_widget(
+        Paragraph::new(history_lines(state))
+            .block(styled_block(
+                "History",
+                state.focused_panel == Panel::ContextRail,
+            ))
+            .style(Style::default().fg(WARM_SILVER).bg(SOFT_CHARCOAL)),
+        rail_sections[2],
     );
     frame.render_widget(
         Paragraph::new(view.footer)
-            .block(styled_block("Status"))
+            .block(styled_block("Status", false))
             .style(Style::default().fg(QUIET_GRAY).bg(GRAPHITE)),
         view.sections[2],
     );
@@ -142,6 +215,66 @@ fn episode_lines(state: &TuiState) -> Vec<Line<'static>> {
         .collect()
 }
 
+fn favorite_lines(state: &TuiState) -> Vec<Line<'static>> {
+    if state.favorites.is_empty() {
+        return vec![Line::from(Span::styled(
+            "No favorites yet",
+            Style::default().fg(QUIET_GRAY),
+        ))];
+    }
+
+    state
+        .favorites
+        .iter()
+        .map(|title| {
+            Line::from(Span::styled(
+                title.name.clone(),
+                Style::default().fg(QUIET_GRAY),
+            ))
+        })
+        .collect()
+}
+
+fn recent_lines(state: &TuiState) -> Vec<Line<'static>> {
+    if state.recently_watched.is_empty() {
+        return vec![Line::from(Span::styled(
+            "Nothing recent",
+            Style::default().fg(QUIET_GRAY),
+        ))];
+    }
+
+    state
+        .recently_watched
+        .iter()
+        .map(|item| {
+            Line::from(Span::styled(
+                format!("{}  E{}", item.title.name, item.episode),
+                Style::default().fg(QUIET_GRAY),
+            ))
+        })
+        .collect()
+}
+
+fn history_lines(state: &TuiState) -> Vec<Line<'static>> {
+    if state.history.is_empty() {
+        return vec![Line::from(Span::styled(
+            "No history yet",
+            Style::default().fg(QUIET_GRAY),
+        ))];
+    }
+
+    state
+        .history
+        .iter()
+        .map(|item| {
+            Line::from(Span::styled(
+                format!("{}  E{}", item.title.name, item.episode),
+                Style::default().fg(QUIET_GRAY),
+            ))
+        })
+        .collect()
+}
+
 struct View {
     header: Vec<Line<'static>>,
     body_title: String,
@@ -200,10 +333,11 @@ fn build_view(state: &TuiState, area: Rect) -> View {
     }
 }
 
-fn styled_block(title: &str) -> Block<'static> {
+fn styled_block(title: &str, active: bool) -> Block<'static> {
+    let border = if active { STEEL_BLUE } else { MIST_BLUE };
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(MIST_BLUE).bg(SMOKE))
+        .border_style(Style::default().fg(border).bg(SMOKE))
         .style(Style::default().bg(SMOKE));
 
     if title.is_empty() {

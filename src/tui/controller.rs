@@ -3,13 +3,17 @@ use crate::core::playback::{PlaybackError, attempt_with_fallback};
 use crate::core::stream_ranker::rank_streams;
 use crate::errors::AppError;
 use crate::tui::action::{Action, Effect};
+use crate::tui::library::{LibraryState, SavedTitle, SavedWatch};
 use crate::tui::state::TuiState;
-use std::time::Duration;
+use crate::tui::storage::LibraryStorage;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub struct TuiController<P, R> {
     provider: P,
     player: R,
     state: TuiState,
+    library: LibraryState,
+    storage: Option<LibraryStorage>,
 }
 
 impl<P, R> TuiController<P, R>
@@ -18,15 +22,43 @@ where
     R: PlayerRuntime,
 {
     pub fn new(provider: P, player: R) -> Self {
-        Self {
+        let mut controller = Self {
             provider,
             player,
             state: TuiState::default(),
-        }
+            library: LibraryState::default(),
+            storage: None,
+        };
+        controller.sync_library_to_state();
+        controller
+    }
+
+    pub async fn with_storage(
+        provider: P,
+        player: R,
+        storage: LibraryStorage,
+    ) -> Result<Self, AppError> {
+        let library = storage
+            .load()
+            .map_err(|err| AppError::Provider(err.to_string()))?;
+
+        let mut controller = Self {
+            provider,
+            player,
+            state: TuiState::default(),
+            library,
+            storage: Some(storage),
+        };
+        controller.sync_library_to_state();
+        Ok(controller)
     }
 
     pub fn state(&self) -> &TuiState {
         &self.state
+    }
+
+    pub fn library(&self) -> &LibraryState {
+        &self.library
     }
 
     pub async fn dispatch(&mut self, action: Action) -> Result<(), AppError> {
@@ -94,6 +126,11 @@ where
 
                 match playback_result {
                     Ok(()) => {
+                        let saved_title = SavedTitle {
+                            id: title.id.clone(),
+                            name: title.name.clone(),
+                        };
+                        self.record_watch(&saved_title, episode.number)?;
                         self.state.apply(Action::PlaybackStarted);
                         Ok(())
                     }
@@ -105,7 +142,65 @@ where
                     }
                 }
             }
+            Some(Effect::ToggleFavoriteForSelectedTitle) => {
+                if let Some(title) = self.selected_title() {
+                    self.library.toggle_favorite(title);
+                    self.sync_library_to_state();
+                    self.persist_library()?;
+                }
+                Ok(())
+            }
             None => Ok(()),
         }
     }
+
+    fn selected_title(&self) -> Option<SavedTitle> {
+        if let Some(title) = &self.state.current_title {
+            return Some(SavedTitle {
+                id: title.id.clone(),
+                name: title.name.clone(),
+            });
+        }
+
+        self.state
+            .results
+            .get(self.state.selected_result)
+            .map(|title| SavedTitle {
+                id: title.id.clone(),
+                name: title.name.clone(),
+            })
+    }
+
+    fn record_watch(&mut self, title: &SavedTitle, episode: u32) -> Result<(), AppError> {
+        self.library.record_watch(SavedWatch {
+            title: title.clone(),
+            episode,
+            watched_at: current_unix_timestamp(),
+        });
+        self.sync_library_to_state();
+        self.persist_library()
+    }
+
+    fn persist_library(&self) -> Result<(), AppError> {
+        if let Some(storage) = &self.storage {
+            storage
+                .save(&self.library)
+                .map_err(|err| AppError::Provider(err.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    fn sync_library_to_state(&mut self) {
+        self.state.favorites = self.library.favorites.clone();
+        self.state.recently_watched = self.library.recently_watched.clone();
+        self.state.history = self.library.history.clone();
+    }
+}
+
+fn current_unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
 }

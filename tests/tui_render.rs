@@ -1,5 +1,5 @@
 use ani::core::models::Title;
-use ani::tui::state::{Mode, TuiState};
+use ani::tui::state::{Mode, Panel, TuiState};
 use ani::tui::ui::render_to_buffer;
 use ratatui::style::Color;
 
@@ -24,6 +24,7 @@ fn first_fg_for_symbol(buffer: &ratatui::buffer::Buffer, needle: &str) -> Option
 fn render_search_screen_shows_query_results_and_key_hints() {
     let state = TuiState {
         mode: Mode::Search,
+        focused_panel: Panel::Main,
         search_focused: false,
         query: "frieren".into(),
         is_loading: false,
@@ -41,6 +42,9 @@ fn render_search_screen_shows_query_results_and_key_hints() {
         current_title: None,
         episodes: vec![],
         selected_episode: 0,
+        favorites: vec![],
+        recently_watched: vec![],
+        history: vec![],
         message: Some("Ready".into()),
     };
 

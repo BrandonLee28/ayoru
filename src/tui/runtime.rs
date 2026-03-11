@@ -3,7 +3,7 @@ use crate::errors::AppError;
 use crate::provider::allanime::AllAnimeProvider;
 use crate::tui::action::Action;
 use crate::tui::controller::TuiController;
-use crate::tui::state::{Mode, TuiState};
+use crate::tui::state::{Mode, Panel, TuiState};
 use crate::tui::ui;
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::Terminal;
@@ -121,6 +121,16 @@ pub fn map_key_code_for_state(state: &TuiState, key_code: KeyCode) -> Option<Inp
     match key_code {
         KeyCode::Char('/') => Some(InputCommand::FocusSearch),
         KeyCode::Char('q') => Some(InputCommand::Quit),
+        KeyCode::Tab => Some(InputCommand::Action(Action::FocusNextPanel)),
+        KeyCode::Char('h') if !state.search_focused => {
+            Some(InputCommand::Action(Action::FocusPrevPanel))
+        }
+        KeyCode::Char('l') if !state.search_focused => {
+            Some(InputCommand::Action(Action::FocusNextPanel))
+        }
+        KeyCode::Char('f') if !state.search_focused => {
+            Some(InputCommand::Action(Action::ToggleFavorite))
+        }
         KeyCode::Char('j') if state.mode == Mode::Search && state.search_focused => {
             Some(InputCommand::Action(Action::InsertChar('j')))
         }
@@ -175,6 +185,10 @@ async fn run_loop(
 }
 
 fn submit_action(state: &TuiState) -> Option<Action> {
+    if state.focused_panel == Panel::ContextRail {
+        return None;
+    }
+
     match state.mode {
         Mode::Search if state.search_focused || state.results.is_empty() || state.is_loading => {
             Some(Action::SubmitSearch)

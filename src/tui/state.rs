@@ -1,5 +1,6 @@
 use crate::core::models::{Episode, Title};
 use crate::tui::action::{Action, Effect};
+use crate::tui::library::{SavedTitle, SavedWatch};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Mode {
@@ -9,9 +10,18 @@ pub enum Mode {
     Launching,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Panel {
+    #[default]
+    Search,
+    Main,
+    ContextRail,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TuiState {
     pub mode: Mode,
+    pub focused_panel: Panel,
     pub search_focused: bool,
     pub query: String,
     pub is_loading: bool,
@@ -20,6 +30,9 @@ pub struct TuiState {
     pub current_title: Option<Title>,
     pub episodes: Vec<Episode>,
     pub selected_episode: usize,
+    pub favorites: Vec<SavedTitle>,
+    pub recently_watched: Vec<SavedWatch>,
+    pub history: Vec<SavedWatch>,
     pub message: Option<String>,
 }
 
@@ -27,6 +40,7 @@ impl Default for TuiState {
     fn default() -> Self {
         Self {
             mode: Mode::Search,
+            focused_panel: Panel::Search,
             search_focused: true,
             query: String::new(),
             is_loading: false,
@@ -35,6 +49,9 @@ impl Default for TuiState {
             current_title: None,
             episodes: vec![],
             selected_episode: 0,
+            favorites: vec![],
+            recently_watched: vec![],
+            history: vec![],
             message: None,
         }
     }
@@ -52,8 +69,25 @@ impl TuiState {
             }
             Action::FocusSearch => {
                 self.mode = Mode::Search;
+                self.focused_panel = Panel::Search;
                 self.search_focused = true;
                 self.message = None;
+                None
+            }
+            Action::FocusNextPanel => {
+                self.focused_panel = match self.focused_panel {
+                    Panel::Search => Panel::ContextRail,
+                    Panel::ContextRail => Panel::Main,
+                    Panel::Main => Panel::Search,
+                };
+                None
+            }
+            Action::FocusPrevPanel => {
+                self.focused_panel = match self.focused_panel {
+                    Panel::Search => Panel::Main,
+                    Panel::Main => Panel::ContextRail,
+                    Panel::ContextRail => Panel::Search,
+                };
                 None
             }
             Action::MoveUp => {
@@ -86,8 +120,16 @@ impl TuiState {
                 }
                 None
             }
+            Action::ToggleFavorite => {
+                if self.current_title.is_some() || !self.results.is_empty() {
+                    Some(Effect::ToggleFavoriteForSelectedTitle)
+                } else {
+                    None
+                }
+            }
             Action::SubmitSearch => {
                 self.mode = Mode::Search;
+                self.focused_panel = Panel::Main;
                 self.search_focused = false;
                 self.is_loading = true;
                 self.message = None;
@@ -109,6 +151,7 @@ impl TuiState {
             }
             Action::Back => {
                 self.mode = Mode::Search;
+                self.focused_panel = Panel::Main;
                 self.search_focused = false;
                 self.is_loading = false;
                 self.message = None;
@@ -116,6 +159,7 @@ impl TuiState {
             }
             Action::SearchCompleted(results) => {
                 self.is_loading = false;
+                self.focused_panel = Panel::Main;
                 self.selected_result = 0;
                 self.results = results;
                 None

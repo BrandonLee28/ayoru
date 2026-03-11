@@ -54,6 +54,25 @@ impl PlayerRuntime for FailingPlayerRuntime {
     }
 }
 
+struct SuccessPlayerRuntime;
+
+#[async_trait::async_trait]
+impl PlayerRuntime for SuccessPlayerRuntime {
+    fn detect(&self) -> Result<Player, DetectError> {
+        Ok(Player::Mpv)
+    }
+
+    async fn launch_and_confirm(
+        &self,
+        _player: Player,
+        _stream_url: &str,
+        _title: &str,
+        _episode: u32,
+    ) -> Result<(), std::io::Error> {
+        Ok(())
+    }
+}
+
 #[tokio::test]
 async fn play_episode_returns_to_episodes_with_failure_message() {
     let mut app = TuiController::new(PlaybackProvider, FailingPlayerRuntime);
@@ -70,4 +89,19 @@ async fn play_episode_returns_to_episodes_with_failure_message() {
         app.state().message.as_deref(),
         Some("Playback failed after trying all providers")
     );
+}
+
+#[tokio::test]
+async fn successful_playback_records_recent_and_history() {
+    let mut app = TuiController::new(PlaybackProvider, SuccessPlayerRuntime);
+
+    for ch in "frieren".chars() {
+        app.dispatch(Action::InsertChar(ch)).await.unwrap();
+    }
+    app.dispatch(Action::SubmitSearch).await.unwrap();
+    app.dispatch(Action::OpenSelectedTitle).await.unwrap();
+    app.dispatch(Action::PlaySelectedEpisode).await.unwrap();
+
+    assert_eq!(app.library().history.len(), 1);
+    assert_eq!(app.library().recently_watched.len(), 1);
 }
