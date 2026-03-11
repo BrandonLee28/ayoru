@@ -6,6 +6,7 @@ pub enum Mode {
     #[default]
     Search,
     Episodes,
+    Launching,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -40,6 +41,14 @@ impl TuiState {
                 self.message = None;
                 Some(Effect::LoadEpisodes(title))
             }
+            Action::PlaySelectedEpisode => {
+                let title = self.current_title.clone()?;
+                let episode = self.episodes.get(self.selected_episode)?.clone();
+                self.mode = Mode::Launching;
+                self.is_loading = true;
+                self.message = None;
+                Some(Effect::PlayEpisode { title, episode })
+            }
             Action::Back => {
                 self.mode = Mode::Search;
                 self.is_loading = false;
@@ -66,6 +75,18 @@ impl TuiState {
                 None
             }
             Action::EpisodesFailed(message) => {
+                self.is_loading = false;
+                self.message = Some(message);
+                None
+            }
+            Action::PlaybackStarted => {
+                self.mode = Mode::Episodes;
+                self.is_loading = false;
+                self.message = Some("Playback started".to_string());
+                None
+            }
+            Action::PlaybackFailed(message) => {
+                self.mode = Mode::Episodes;
                 self.is_loading = false;
                 self.message = Some(message);
                 None

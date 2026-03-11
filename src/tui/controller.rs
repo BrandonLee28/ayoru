@@ -1,11 +1,14 @@
 use crate::app::{PlayerRuntime, ProviderRuntime};
+use crate::core::playback::{PlaybackError, attempt_with_fallback};
+use crate::core::stream_ranker::rank_streams;
 use crate::errors::AppError;
 use crate::tui::action::{Action, Effect};
 use crate::tui::state::TuiState;
+use std::time::Duration;
 
 pub struct TuiController<P, R> {
     provider: P,
-    _player: R,
+    player: R,
     state: TuiState,
 }
 
@@ -17,7 +20,7 @@ where
     pub fn new(provider: P, player: R) -> Self {
         Self {
             provider,
-            _player: player,
+            player,
             state: TuiState::default(),
         }
     }
@@ -51,6 +54,59 @@ where
                     Ok(())
                 }
             },
+            Some(Effect::PlayEpisode { title, episode }) => {
+                let mut streams = self
+                    .provider
+                    .streams(&title.id, episode.number, true)
+                    .await
+                    .map_err(AppError::Provider)?;
+                if streams.is_empty() {
+                    self.state
+                        .apply(Action::PlaybackFailed("No playable streams found".to_string()));
+                    return Ok(());
+                }
+
+                rank_streams(&mut streams);
+
+                let player = match self.player.detect() {
+                    Ok(player) => player,
+                    Err(err) => {
+                        self.state.apply(Action::PlaybackFailed(err.to_string()));
+                        return Ok(());
+                    }
+                };
+
+                let title_name = title.name.clone();
+                let episode_number = episode.number;
+                let player_runtime = &self.player;
+                let playback_result = attempt_with_fallback(
+                    &streams,
+                    Duration::from_secs(6),
+                    |stream| {
+                        let url = stream.url.clone();
+                        let title_name = title_name.clone();
+                        async move {
+                            player_runtime
+                                .launch_and_confirm(player, &url, &title_name, episode_number)
+                                .await
+                        }
+                    },
+                )
+                .await;
+
+                match playback_result {
+                    Ok(()) => {
+                        self.state.apply(Action::PlaybackStarted);
+                        Ok(())
+                    }
+                    Err(PlaybackError::AllFailed) => {
+                        self.state.apply(Action::PlaybackFailed(
+                            "Playback failed after trying all providers".to_string(),
+                        ));
+                        Ok(())
+                    }
+                }
+            }
             None => Ok(()),
         }
     }
