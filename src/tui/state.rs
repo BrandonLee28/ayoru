@@ -1,10 +1,11 @@
-use crate::core::models::Title;
+use crate::core::models::{Episode, Title};
 use crate::tui::action::{Action, Effect};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Mode {
     #[default]
     Search,
+    Episodes,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -14,6 +15,9 @@ pub struct TuiState {
     pub is_loading: bool,
     pub results: Vec<Title>,
     pub selected_result: usize,
+    pub current_title: Option<Title>,
+    pub episodes: Vec<Episode>,
+    pub selected_episode: usize,
     pub message: Option<String>,
 }
 
@@ -30,6 +34,18 @@ impl TuiState {
                 self.message = None;
                 Some(Effect::SearchTitles(self.query.clone()))
             }
+            Action::OpenSelectedTitle => {
+                let title = self.results.get(self.selected_result)?.clone();
+                self.is_loading = true;
+                self.message = None;
+                Some(Effect::LoadEpisodes(title))
+            }
+            Action::Back => {
+                self.mode = Mode::Search;
+                self.is_loading = false;
+                self.message = None;
+                None
+            }
             Action::SearchCompleted(results) => {
                 self.is_loading = false;
                 self.selected_result = 0;
@@ -37,6 +53,19 @@ impl TuiState {
                 None
             }
             Action::SearchFailed(message) => {
+                self.is_loading = false;
+                self.message = Some(message);
+                None
+            }
+            Action::EpisodesCompleted { title, episodes } => {
+                self.mode = Mode::Episodes;
+                self.is_loading = false;
+                self.current_title = Some(title);
+                self.selected_episode = 0;
+                self.episodes = episodes;
+                None
+            }
+            Action::EpisodesFailed(message) => {
                 self.is_loading = false;
                 self.message = Some(message);
                 None

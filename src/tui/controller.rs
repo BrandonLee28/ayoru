@@ -40,6 +40,17 @@ where
                     Ok(())
                 }
             },
+            Some(Effect::LoadEpisodes(title)) => match self.provider.episodes(&title.id).await {
+                Ok(episodes) => {
+                    self.state
+                        .apply(Action::EpisodesCompleted { title, episodes });
+                    Ok(())
+                }
+                Err(err) => {
+                    self.state.apply(Action::EpisodesFailed(err));
+                    Ok(())
+                }
+            },
             None => Ok(()),
         }
     }
