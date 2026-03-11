@@ -1,0 +1,8 @@
+{
+  "sources": [
+    {"sourceName": "Default", "sourceUrl": "https://stream.example/wix"},
+    {"sourceName": "Yt-mp4", "sourceUrl": "https://stream.example/yt"},
+    {"sourceName": "S-mp4", "sourceUrl": "https://stream.example/sp"},
+    {"sourceName": "Luf-Mp4", "sourceUrl": "https://stream.example/hi"}
+  ]
+}

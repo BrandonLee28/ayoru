@@ -1,0 +1,10 @@
+{
+  "data": {
+    "shows": {
+      "edges": [
+        {"_id": "show-1", "name": "Sousou no Frieren"},
+        {"_id": "show-2", "name": "Frieren OVA"}
+      ]
+    }
+  }
+}
