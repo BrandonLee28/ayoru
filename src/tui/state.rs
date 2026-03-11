@@ -29,6 +29,41 @@ impl TuiState {
                 self.query.push(ch);
                 None
             }
+            Action::FocusSearch => {
+                self.mode = Mode::Search;
+                self.message = None;
+                None
+            }
+            Action::MoveUp => {
+                match self.mode {
+                    Mode::Search => {
+                        self.selected_result = self.selected_result.saturating_sub(1);
+                    }
+                    Mode::Episodes => {
+                        self.selected_episode = self.selected_episode.saturating_sub(1);
+                    }
+                    Mode::Launching => {}
+                }
+                None
+            }
+            Action::MoveDown => {
+                match self.mode {
+                    Mode::Search => {
+                        if !self.results.is_empty() {
+                            self.selected_result =
+                                (self.selected_result + 1).min(self.results.len() - 1);
+                        }
+                    }
+                    Mode::Episodes => {
+                        if !self.episodes.is_empty() {
+                            self.selected_episode =
+                                (self.selected_episode + 1).min(self.episodes.len() - 1);
+                        }
+                    }
+                    Mode::Launching => {}
+                }
+                None
+            }
             Action::SubmitSearch => {
                 self.mode = Mode::Search;
                 self.is_loading = true;

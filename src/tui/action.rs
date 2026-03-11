@@ -3,6 +3,9 @@ use crate::core::models::{Episode, Title};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     InsertChar(char),
+    FocusSearch,
+    MoveUp,
+    MoveDown,
     SubmitSearch,
     OpenSelectedTitle,
     PlaySelectedEpisode,

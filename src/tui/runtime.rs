@@ -1,4 +1,14 @@
+use crate::app::SystemPlayerRuntime;
 use crate::errors::AppError;
+use crate::provider::allanime::AllAnimeProvider;
+use crate::tui::action::Action;
+use crate::tui::controller::TuiController;
+use crate::tui::state::{Mode, TuiState};
+use crate::tui::ui;
+use crossterm::event::{self, Event, KeyCode};
+use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
+use std::io::{IsTerminal, stdout};
 
 pub trait TerminalSession {
     fn enable_raw_mode(&mut self) -> std::io::Result<()>;
@@ -16,6 +26,15 @@ pub trait RuntimeApp {
 pub enum RunDecision {
     Continue,
     Quit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InputCommand {
+    Action(Action),
+    Submit,
+    Back,
+    Quit,
+    FocusSearch,
 }
 
 pub async fn run_with_terminal<T, A>(terminal: &mut T, mut app: A) -> Result<(), AppError>
@@ -45,8 +64,35 @@ where
 }
 
 pub async fn run() -> Result<(), AppError> {
-    let mut terminal = CrosstermTerminalSession;
-    run_with_terminal(&mut terminal, ImmediateQuit).await
+    if !std::io::stdin().is_terminal() || !stdout().is_terminal() {
+        return Err(AppError::Provider("TUI requires a TTY terminal".to_string()));
+    }
+
+    let mut session = CrosstermTerminalSession;
+    session
+        .enable_raw_mode()
+        .map_err(|e| AppError::Provider(e.to_string()))?;
+    session
+        .enter_alt_screen()
+        .map_err(|e| AppError::Provider(e.to_string()))?;
+
+    let backend = CrosstermBackend::new(stdout());
+    let mut terminal = Terminal::new(backend).map_err(|e| AppError::Provider(e.to_string()))?;
+    let mut controller = TuiController::new(AllAnimeProvider::new(), SystemPlayerRuntime);
+
+    let result = run_loop(&mut terminal, &mut controller).await;
+
+    terminal
+        .show_cursor()
+        .map_err(|e| AppError::Provider(e.to_string()))?;
+    session
+        .leave_alt_screen()
+        .map_err(|e| AppError::Provider(e.to_string()))?;
+    session
+        .disable_raw_mode()
+        .map_err(|e| AppError::Provider(e.to_string()))?;
+
+    result
 }
 
 struct CrosstermTerminalSession;
@@ -75,11 +121,62 @@ impl TerminalSession for CrosstermTerminalSession {
     }
 }
 
-struct ImmediateQuit;
+pub fn map_key_code(key_code: KeyCode) -> Option<InputCommand> {
+    match key_code {
+        KeyCode::Char('/') => Some(InputCommand::FocusSearch),
+        KeyCode::Char('q') => Some(InputCommand::Quit),
+        KeyCode::Char('j') | KeyCode::Down => Some(InputCommand::Action(Action::MoveDown)),
+        KeyCode::Char('k') | KeyCode::Up => Some(InputCommand::Action(Action::MoveUp)),
+        KeyCode::Enter => Some(InputCommand::Submit),
+        KeyCode::Esc => Some(InputCommand::Back),
+        KeyCode::Char(ch) => Some(InputCommand::Action(Action::InsertChar(ch))),
+        _ => None,
+    }
+}
 
-#[async_trait::async_trait]
-impl RuntimeApp for ImmediateQuit {
-    async fn step(&mut self) -> Result<RunDecision, AppError> {
-        Ok(RunDecision::Quit)
+async fn run_loop(
+    terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+    controller: &mut TuiController<AllAnimeProvider, SystemPlayerRuntime>,
+) -> Result<(), AppError> {
+    loop {
+        terminal
+            .draw(|frame| ui::draw(frame, controller.state()))
+            .map_err(|e| AppError::Provider(e.to_string()))?;
+
+        let event = event::read().map_err(|e| AppError::Provider(e.to_string()))?;
+        let Event::Key(key_event) = event else {
+            continue;
+        };
+
+        let Some(command) = map_key_code(key_event.code) else {
+            continue;
+        };
+
+        match command {
+            InputCommand::Action(action) => controller.dispatch(action).await?,
+            InputCommand::FocusSearch => controller.dispatch(Action::FocusSearch).await?,
+            InputCommand::Back => {
+                if controller.state().mode == Mode::Episodes {
+                    controller.dispatch(Action::Back).await?;
+                } else if controller.state().mode == Mode::Search {
+                    return Ok(());
+                }
+            }
+            InputCommand::Quit => return Ok(()),
+            InputCommand::Submit => {
+                if let Some(action) = submit_action(controller.state()) {
+                    controller.dispatch(action).await?;
+                }
+            }
+        }
+    }
+}
+
+fn submit_action(state: &TuiState) -> Option<Action> {
+    match state.mode {
+        Mode::Search if state.results.is_empty() || state.is_loading => Some(Action::SubmitSearch),
+        Mode::Search => Some(Action::OpenSelectedTitle),
+        Mode::Episodes => Some(Action::PlaySelectedEpisode),
+        Mode::Launching => None,
     }
 }

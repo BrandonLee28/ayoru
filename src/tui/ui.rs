@@ -3,6 +3,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
+use ratatui::Frame;
 use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 
 pub fn render_to_buffer(state: &TuiState, width: u16, height: u16) -> Buffer {
@@ -13,41 +14,33 @@ pub fn render_to_buffer(state: &TuiState, width: u16, height: u16) -> Buffer {
 }
 
 pub fn render(state: &TuiState, area: Rect, buffer: &mut Buffer) {
-    let sections = Layout::vertical([
-        Constraint::Length(3),
-        Constraint::Min(1),
-        Constraint::Length(3),
-    ])
-    .split(area);
-
-    let title = match state.mode {
-        Mode::Search => "Search",
-        Mode::Episodes => "Episodes",
-        Mode::Launching => "Launching",
-    };
-
-    Paragraph::new(format!("{title}  Query: {}", state.query))
+    let view = build_view(state, area);
+    Paragraph::new(view.header)
         .block(Block::default().borders(Borders::ALL).title("ani tui"))
-        .render(sections[0], buffer);
-
-    let body = match state.mode {
-        Mode::Search => search_lines(state),
-        Mode::Episodes => episode_lines(state),
-        Mode::Launching => vec![Line::from("Launching playback...")],
-    };
-
-    Paragraph::new(body)
+        .render(view.sections[0], buffer);
+    Paragraph::new(view.body)
         .block(Block::default().borders(Borders::ALL).title("Main"))
-        .render(sections[1], buffer);
-
-    let footer = match &state.message {
-        Some(message) => format!("{message}  Enter select  Esc back  q quit"),
-        None => "Enter select  Esc back  q quit".to_string(),
-    };
-
-    Paragraph::new(footer)
+        .render(view.sections[1], buffer);
+    Paragraph::new(view.footer)
         .block(Block::default().borders(Borders::ALL).title("Hints"))
-        .render(sections[2], buffer);
+        .render(view.sections[2], buffer);
+}
+
+pub fn draw(frame: &mut Frame<'_>, state: &TuiState) {
+    let area = frame.area();
+    let view = build_view(state, area);
+    frame.render_widget(
+        Paragraph::new(view.header).block(Block::default().borders(Borders::ALL).title("ani tui")),
+        view.sections[0],
+    );
+    frame.render_widget(
+        Paragraph::new(view.body).block(Block::default().borders(Borders::ALL).title("Main")),
+        view.sections[1],
+    );
+    frame.render_widget(
+        Paragraph::new(view.footer).block(Block::default().borders(Borders::ALL).title("Hints")),
+        view.sections[2],
+    );
 }
 
 fn search_lines(state: &TuiState) -> Vec<Line<'static>> {
@@ -93,4 +86,45 @@ fn episode_lines(state: &TuiState) -> Vec<Line<'static>> {
             }
         })
         .collect()
+}
+
+struct View {
+    header: String,
+    body: Vec<Line<'static>>,
+    footer: String,
+    sections: Vec<Rect>,
+}
+
+fn build_view(state: &TuiState, area: Rect) -> View {
+    let sections = Layout::vertical([
+        Constraint::Length(3),
+        Constraint::Min(1),
+        Constraint::Length(3),
+    ])
+    .split(area)
+    .to_vec();
+
+    let title = match state.mode {
+        Mode::Search => "Search",
+        Mode::Episodes => "Episodes",
+        Mode::Launching => "Launching",
+    };
+
+    let body = match state.mode {
+        Mode::Search => search_lines(state),
+        Mode::Episodes => episode_lines(state),
+        Mode::Launching => vec![Line::from("Launching playback...")],
+    };
+
+    let footer = match &state.message {
+        Some(message) => format!("{message}  Enter select  Esc back  q quit"),
+        None => "Enter select  Esc back  q quit".to_string(),
+    };
+
+    View {
+        header: format!("{title}  Query: {}", state.query),
+        body,
+        footer,
+        sections,
+    }
 }
