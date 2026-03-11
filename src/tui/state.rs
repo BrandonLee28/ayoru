@@ -67,6 +67,13 @@ impl TuiState {
                 self.query.push(ch);
                 None
             }
+            Action::DeleteChar => {
+                if self.mode == Mode::Search {
+                    self.search_focused = true;
+                }
+                self.query.pop();
+                None
+            }
             Action::FocusSearch => {
                 self.mode = Mode::Search;
                 self.focused_panel = Panel::Search;

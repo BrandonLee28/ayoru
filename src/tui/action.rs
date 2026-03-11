@@ -3,6 +3,7 @@ use crate::core::models::{Episode, Title};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     InsertChar(char),
+    DeleteChar,
     FocusSearch,
     FocusNextPanel,
     FocusPrevPanel,

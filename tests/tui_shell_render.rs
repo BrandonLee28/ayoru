@@ -56,3 +56,40 @@ fn shell_render_shows_search_header_and_context_sections() {
     assert!(buffer_contains(&buffer, "Frieren"));
     assert!(buffer_contains(&buffer, "Dungeon Meshi"));
 }
+
+#[test]
+fn shell_render_shows_latest_history_entries_when_panel_overflows() {
+    let mut state = shell_fixture_state();
+    state.history = vec![
+        SavedWatch {
+            title: SavedTitle {
+                id: "show-1".into(),
+                name: "Oldest".into(),
+            },
+            episode: 1,
+            watched_at: 1,
+        },
+        SavedWatch {
+            title: SavedTitle {
+                id: "show-2".into(),
+                name: "Middle".into(),
+            },
+            episode: 2,
+            watched_at: 2,
+        },
+        SavedWatch {
+            title: SavedTitle {
+                id: "show-3".into(),
+                name: "Newest".into(),
+            },
+            episode: 3,
+            watched_at: 3,
+        },
+    ];
+
+    let buffer = render_to_buffer(&state, 120, 20);
+
+    assert!(buffer_contains(&buffer, "History"));
+    assert!(buffer_contains(&buffer, "Newest"));
+    assert!(!buffer_contains(&buffer, "Oldest"));
+}

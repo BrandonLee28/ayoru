@@ -13,6 +13,10 @@ fn slash_and_text_input_focus_search_and_append_query() {
         map_key_code_for_state(&TuiState::default(), KeyCode::Char('f')),
         Some(InputCommand::Action(Action::InsertChar('f')))
     );
+    assert_eq!(
+        map_key_code_for_state(&TuiState::default(), KeyCode::Backspace),
+        Some(InputCommand::Action(Action::DeleteChar))
+    );
 }
 
 #[test]

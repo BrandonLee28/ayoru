@@ -125,6 +125,9 @@ pub fn map_key_code_for_state(state: &TuiState, key_code: KeyCode) -> Option<Inp
     match key_code {
         KeyCode::Char('/') => Some(InputCommand::FocusSearch),
         KeyCode::Char('q') => Some(InputCommand::Quit),
+        KeyCode::Backspace if state.mode == Mode::Search => {
+            Some(InputCommand::Action(Action::DeleteChar))
+        }
         KeyCode::Tab => Some(InputCommand::Action(Action::FocusNextPanel)),
         KeyCode::Char('h') if !state.search_focused => {
             Some(InputCommand::Action(Action::FocusPrevPanel))

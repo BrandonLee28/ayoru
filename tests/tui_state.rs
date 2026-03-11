@@ -24,3 +24,16 @@ fn typing_updates_query_without_side_effects() {
     assert_eq!(state.query, "f");
     assert_eq!(effect, None);
 }
+
+#[test]
+fn backspace_removes_last_character_from_query() {
+    let mut state = TuiState {
+        query: "frieren".into(),
+        ..Default::default()
+    };
+
+    let effect = state.apply(Action::DeleteChar);
+
+    assert_eq!(state.query, "friere");
+    assert_eq!(effect, None);
+}

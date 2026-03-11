@@ -75,3 +75,26 @@ fn render_empty_search_screen_uses_branded_copy() {
     assert!(buffer_contains(&buffer, "Search, choose, watch."));
     assert!(buffer_contains(&buffer, "Type a title, then press Enter"));
 }
+
+#[test]
+fn render_search_screen_scrolls_selected_result_into_view() {
+    let state = TuiState {
+        mode: Mode::Search,
+        focused_panel: Panel::Main,
+        search_focused: false,
+        query: "one piece".into(),
+        results: (0..20)
+            .map(|idx| Title {
+                id: format!("show-{idx}"),
+                name: format!("Title {idx}"),
+            })
+            .collect(),
+        selected_result: 15,
+        ..Default::default()
+    };
+
+    let buffer = render_to_buffer(&state, 100, 18);
+
+    assert!(buffer_contains(&buffer, "Title 15"));
+    assert!(!buffer_contains(&buffer, "Title 0"));
+}
