@@ -1,7 +1,7 @@
 use crate::errors::AppError;
 
+pub mod runtime;
+
 pub async fn run() -> Result<(), AppError> {
-    Err(AppError::Provider(
-        "TUI runtime is not implemented yet".to_string(),
-    ))
+    runtime::run().await
 }
