@@ -37,8 +37,20 @@ fn render_search_screen_shows_query_results_and_key_hints() {
 
     let buffer = render_to_buffer(&state, 80, 24);
 
-    assert!(buffer_contains(&buffer, "Search"));
+    assert!(buffer_contains(&buffer, "AYORU"));
+    assert!(buffer_contains(&buffer, "A quieter way to watch anime."));
     assert!(buffer_contains(&buffer, "frieren"));
     assert!(buffer_contains(&buffer, "Frieren"));
     assert!(buffer_contains(&buffer, "Enter"));
+    assert!(buffer_contains(&buffer, "Ready"));
+}
+
+#[test]
+fn render_empty_search_screen_uses_branded_copy() {
+    let buffer = render_to_buffer(&TuiState::default(), 80, 24);
+
+    assert!(buffer_contains(&buffer, "AYORU"));
+    assert!(buffer_contains(&buffer, "A quieter way to watch anime."));
+    assert!(buffer_contains(&buffer, "Search, choose, watch."));
+    assert!(buffer_contains(&buffer, "Type a title, then press Enter"));
 }
