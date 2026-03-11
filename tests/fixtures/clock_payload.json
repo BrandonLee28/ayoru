@@ -1,0 +1,6 @@
+{
+  "links": [
+    {"link": "https://cdn.example/video-1080.mp4", "resolutionStr": "1080"},
+    {"hls": {"url": "https://cdn.example/master.m3u8", "hardsub_lang": "en-US"}}
+  ]
+}

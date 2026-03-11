@@ -9,7 +9,7 @@ async fn main() {
     };
 
     let query = args.query.join(" ");
-    let provider = ani::provider::allanime::AllAnimeProvider;
+    let provider = ani::provider::allanime::AllAnimeProvider::new();
     let runtime = ani::app::SystemPlayerRuntime;
 
     if let Err(err) = ani::app::run_with(&query, &provider, &runtime).await {
