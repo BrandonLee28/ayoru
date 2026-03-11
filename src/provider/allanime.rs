@@ -83,44 +83,59 @@ impl ProviderRuntime for AllAnimeProvider {
         });
         let body = self.gql_request(variables, STREAMS_GQL).await?;
 
-        let mut streams = parse_stream_candidates(&body, prefer_sub)?;
-        let mut expanded = Vec::new();
-        for s in streams.drain(..) {
-            if s.url.contains("/clock.json") || s.url.contains("/clock?") {
-                let payload = self
-                    .client
-                    .get(&s.url)
-                    .header("Referer", ALLANIME_REFERER)
-                    .send()
-                    .await
-                    .map_err(|e| e.to_string())?
-                    .error_for_status()
-                    .map_err(|e| e.to_string())?
-                    .text()
-                    .await
-                    .map_err(|e| e.to_string())?;
+        let streams = parse_stream_candidates(&body, prefer_sub)?;
+        Ok(expand_streams_with_fetch(streams, |url| async move {
+            self.client
+                .get(url)
+                .header("Referer", ALLANIME_REFERER)
+                .send()
+                .await
+                .map_err(|e| e.to_string())?
+                .error_for_status()
+                .map_err(|e| e.to_string())?
+                .text()
+                .await
+                .map_err(|e| e.to_string())
+        })
+        .await)
+    }
+}
 
-                let urls = parse_provider_payload_links(&payload);
-                if urls.is_empty() {
-                    expanded.push(s);
-                    continue;
-                }
+async fn expand_streams_with_fetch<F, Fut>(
+    streams: Vec<StreamCandidate>,
+    mut fetch_payload: F,
+) -> Vec<StreamCandidate>
+where
+    F: FnMut(String) -> Fut,
+    Fut: std::future::Future<Output = Result<String, String>>,
+{
+    let mut expanded = Vec::new();
+    for s in streams {
+        if s.url.contains("/clock.json") || s.url.contains("/clock?") {
+            let Ok(payload) = fetch_payload(s.url.clone()).await else {
+                // Provider clock endpoints can intermittently 500; skip and let fallback continue.
+                continue;
+            };
 
-                for url in urls {
-                    expanded.push(StreamCandidate {
-                        provider: s.provider.clone(),
-                        url,
-                        is_sub: s.is_sub,
-                        resolution: s.resolution,
-                    });
-                }
+            let urls = parse_provider_payload_links(&payload);
+            if urls.is_empty() {
                 continue;
             }
-            expanded.push(s);
-        }
 
-        Ok(expanded)
+            for url in urls {
+                expanded.push(StreamCandidate {
+                    provider: s.provider.clone(),
+                    url,
+                    is_sub: s.is_sub,
+                    resolution: s.resolution,
+                });
+            }
+            continue;
+        }
+        expanded.push(s);
     }
+
+    expanded
 }
 
 pub fn parse_search_titles(raw: &str) -> Result<Vec<Title>, String> {
@@ -343,4 +358,36 @@ fn decode_pair(pair: &str) -> Result<char, String> {
         _ => return Err(format!("unknown encoded byte: {pair}")),
     };
     Ok(c)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expand_streams_with_fetch;
+    use crate::core::models::StreamCandidate;
+
+    #[tokio::test]
+    async fn skips_failed_clock_source_and_keeps_other_candidates() {
+        let streams = vec![
+            StreamCandidate {
+                provider: "wixmp".to_string(),
+                url: "https://allanime.day/apivtwo/clock.json?id=bad".to_string(),
+                is_sub: true,
+                resolution: None,
+            },
+            StreamCandidate {
+                provider: "youtube".to_string(),
+                url: "https://tools.fast4speed.rsvp/video.mp4".to_string(),
+                is_sub: true,
+                resolution: None,
+            },
+        ];
+
+        let expanded = expand_streams_with_fetch(streams, |_| async {
+            Err::<String, String>("500".to_string())
+        })
+        .await;
+
+        assert_eq!(expanded.len(), 1);
+        assert_eq!(expanded[0].provider, "youtube");
+    }
 }
