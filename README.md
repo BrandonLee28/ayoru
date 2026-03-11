@@ -35,10 +35,39 @@ cd ayoru
 cargo run -- "frieren"
 ```
 
-### Install locally with Cargo
+### One-command install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BrandonLee28/ayoru/main/scripts/install.sh | sh
+```
+
+This installer:
+
+- installs `ayoru` to `~/.local/bin/ayoru`
+- prefers a GitHub release artifact when one exists
+- falls back to a source build when a release artifact is unavailable
+- updates your shell `PATH` if `~/.local/bin` is missing
+
+Verify:
+
+```bash
+command -v ayoru
+ayoru --version
+```
+
+### Install from source with Cargo
 
 ```bash
 cargo install --path .
+```
+
+Cargo installs the binary to `~/.cargo/bin/ayoru`. If `ayoru` is not found in a new terminal, add Cargo's bin directory to your shell `PATH`.
+
+For `zsh` on macOS:
+
+```bash
+echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.zprofile
+source ~/.zprofile
 ```
 
 Then use:
@@ -138,6 +167,26 @@ cargo test -q
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 ```
+
+## Release Asset Naming
+
+The installer expects release artifacts to use this naming:
+
+- `ayoru-darwin-aarch64.tar.gz`
+- `ayoru-darwin-x86_64.tar.gz`
+- `ayoru-linux-aarch64.tar.gz`
+- `ayoru-linux-x86_64.tar.gz`
+
+## Maintainer Release Flow
+
+Push a version tag to publish the release assets automatically:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The GitHub Actions release workflow builds the four installer tarballs and attaches them to the matching GitHub Release.
 
 ## Notes
 
