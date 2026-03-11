@@ -15,6 +15,7 @@ fn buffer_contains(buffer: &ratatui::buffer::Buffer, needle: &str) -> bool {
 fn render_search_screen_shows_query_results_and_key_hints() {
     let state = TuiState {
         mode: Mode::Search,
+        search_focused: false,
         query: "frieren".into(),
         is_loading: false,
         results: vec![

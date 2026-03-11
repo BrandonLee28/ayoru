@@ -9,9 +9,10 @@ pub enum Mode {
     Launching,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TuiState {
     pub mode: Mode,
+    pub search_focused: bool,
     pub query: String,
     pub is_loading: bool,
     pub results: Vec<Title>,
@@ -22,15 +23,36 @@ pub struct TuiState {
     pub message: Option<String>,
 }
 
+impl Default for TuiState {
+    fn default() -> Self {
+        Self {
+            mode: Mode::Search,
+            search_focused: true,
+            query: String::new(),
+            is_loading: false,
+            results: vec![],
+            selected_result: 0,
+            current_title: None,
+            episodes: vec![],
+            selected_episode: 0,
+            message: None,
+        }
+    }
+}
+
 impl TuiState {
     pub fn apply(&mut self, action: Action) -> Option<Effect> {
         match action {
             Action::InsertChar(ch) => {
+                if self.mode == Mode::Search {
+                    self.search_focused = true;
+                }
                 self.query.push(ch);
                 None
             }
             Action::FocusSearch => {
                 self.mode = Mode::Search;
+                self.search_focused = true;
                 self.message = None;
                 None
             }
@@ -66,6 +88,7 @@ impl TuiState {
             }
             Action::SubmitSearch => {
                 self.mode = Mode::Search;
+                self.search_focused = false;
                 self.is_loading = true;
                 self.message = None;
                 Some(Effect::SearchTitles(self.query.clone()))
@@ -86,6 +109,7 @@ impl TuiState {
             }
             Action::Back => {
                 self.mode = Mode::Search;
+                self.search_focused = false;
                 self.is_loading = false;
                 self.message = None;
                 None

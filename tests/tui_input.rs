@@ -1,27 +1,48 @@
 use ani::tui::action::Action;
-use ani::tui::runtime::{InputCommand, map_key_code};
+use ani::tui::runtime::{InputCommand, map_key_code_for_state};
+use ani::tui::state::{Mode, TuiState};
 use crossterm::event::KeyCode;
 
 #[test]
 fn slash_and_text_input_focus_search_and_append_query() {
     assert_eq!(
-        map_key_code(KeyCode::Char('/')),
+        map_key_code_for_state(&TuiState::default(), KeyCode::Char('/')),
         Some(InputCommand::FocusSearch)
     );
     assert_eq!(
-        map_key_code(KeyCode::Char('f')),
+        map_key_code_for_state(&TuiState::default(), KeyCode::Char('f')),
         Some(InputCommand::Action(Action::InsertChar('f')))
     );
 }
 
 #[test]
 fn navigation_keys_map_to_selection_actions() {
+    let state = TuiState {
+        mode: Mode::Search,
+        search_focused: false,
+        ..Default::default()
+    };
+
     assert_eq!(
-        map_key_code(KeyCode::Down),
+        map_key_code_for_state(&state, KeyCode::Down),
         Some(InputCommand::Action(Action::MoveDown))
     );
     assert_eq!(
-        map_key_code(KeyCode::Char('k')),
+        map_key_code_for_state(&state, KeyCode::Char('k')),
         Some(InputCommand::Action(Action::MoveUp))
+    );
+}
+
+#[test]
+fn search_focus_treats_j_and_k_as_query_text() {
+    let state = TuiState::default();
+
+    assert_eq!(
+        map_key_code_for_state(&state, KeyCode::Char('j')),
+        Some(InputCommand::Action(Action::InsertChar('j')))
+    );
+    assert_eq!(
+        map_key_code_for_state(&state, KeyCode::Char('k')),
+        Some(InputCommand::Action(Action::InsertChar('k')))
     );
 }

@@ -117,10 +117,16 @@ impl TerminalSession for CrosstermTerminalSession {
     }
 }
 
-pub fn map_key_code(key_code: KeyCode) -> Option<InputCommand> {
+pub fn map_key_code_for_state(state: &TuiState, key_code: KeyCode) -> Option<InputCommand> {
     match key_code {
         KeyCode::Char('/') => Some(InputCommand::FocusSearch),
         KeyCode::Char('q') => Some(InputCommand::Quit),
+        KeyCode::Char('j') if state.mode == Mode::Search && state.search_focused => {
+            Some(InputCommand::Action(Action::InsertChar('j')))
+        }
+        KeyCode::Char('k') if state.mode == Mode::Search && state.search_focused => {
+            Some(InputCommand::Action(Action::InsertChar('k')))
+        }
         KeyCode::Char('j') | KeyCode::Down => Some(InputCommand::Action(Action::MoveDown)),
         KeyCode::Char('k') | KeyCode::Up => Some(InputCommand::Action(Action::MoveUp)),
         KeyCode::Enter => Some(InputCommand::Submit),
@@ -144,7 +150,7 @@ async fn run_loop(
             continue;
         };
 
-        let Some(command) = map_key_code(key_event.code) else {
+        let Some(command) = map_key_code_for_state(controller.state(), key_event.code) else {
             continue;
         };
 
@@ -170,7 +176,9 @@ async fn run_loop(
 
 fn submit_action(state: &TuiState) -> Option<Action> {
     match state.mode {
-        Mode::Search if state.results.is_empty() || state.is_loading => Some(Action::SubmitSearch),
+        Mode::Search if state.search_focused || state.results.is_empty() || state.is_loading => {
+            Some(Action::SubmitSearch)
+        }
         Mode::Search => Some(Action::OpenSelectedTitle),
         Mode::Episodes => Some(Action::PlaySelectedEpisode),
         Mode::Launching => None,
