@@ -4,6 +4,7 @@ set -eu
 
 REPO_SLUG=${AYORU_REPO_SLUG:-BrandonLee28/ayoru}
 DEFAULT_INSTALL_DIR=${AYORU_INSTALL_DIR:-"$HOME/.local/bin"}
+DEFAULT_RELEASE_VERSION=${AYORU_RELEASE_VERSION:-alpha}
 
 normalize_arch() {
     case "$1" in
@@ -183,22 +184,16 @@ install_binary() {
 }
 
 release_download_url() {
-    version=${1:-latest}
+    version=${1:-$DEFAULT_RELEASE_VERSION}
     os_arch=$(require_supported_target "$(uname -s)" "$(uname -m)")
     os=${os_arch%%:*}
     arch=${os_arch#*:}
     asset=$(asset_name "$os" "$arch")
-
-    if [ "$version" = "latest" ]; then
-        printf 'https://github.com/%s/releases/latest/download/%s\n' "$REPO_SLUG" "$asset"
-        return 0
-    fi
-
     release_asset_url "$version" "$os" "$arch"
 }
 
 install_from_release() {
-    version=${1:-latest}
+    version=${1:-$DEFAULT_RELEASE_VERSION}
     install_dir=$2
     tmpdir=$(mktemp -d)
     archive=$tmpdir/ayoru.tar.gz
@@ -278,7 +273,7 @@ print_success() {
 
 main() {
     mode=auto
-    version=latest
+    version=$DEFAULT_RELEASE_VERSION
     install_dir=$DEFAULT_INSTALL_DIR
 
     while [ "$#" -gt 0 ]; do
