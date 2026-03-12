@@ -3,7 +3,9 @@ use ayoru::core::models::{Episode, StreamCandidate, Title};
 use ayoru::player::detect::{DetectError, Player};
 use ayoru::tui::action::Action;
 use ayoru::tui::controller::TuiController;
+use ayoru::tui::library::{LibraryState, SavedTitle, SavedWatch};
 use ayoru::tui::state::Mode;
+use ayoru::tui::storage::LibraryStorage;
 
 struct EpisodeProvider;
 
@@ -71,4 +73,35 @@ async fn opening_episodes_preserves_search_query_when_navigating_back() {
     assert_eq!(app.state().mode, Mode::Search);
     assert_eq!(app.state().query, "frieren");
     assert_eq!(app.state().selected_result, 0);
+}
+
+#[tokio::test]
+async fn opening_history_entry_loads_episodes_for_that_title() {
+    let dir = tempfile::tempdir().unwrap();
+    let storage = LibraryStorage::new(dir.path().join("library.json"));
+    storage
+        .save(&LibraryState {
+            favorites: vec![],
+            history: vec![SavedWatch {
+                title: SavedTitle {
+                    id: "show-1".into(),
+                    name: "Frieren".into(),
+                },
+                episode: 3,
+                watched_at: 1,
+            }],
+            recently_watched: vec![],
+        })
+        .unwrap();
+    let mut app = TuiController::with_storage(EpisodeProvider, NoopPlayerRuntime, storage)
+        .await
+        .unwrap();
+
+    app.dispatch(Action::NextTab).await.unwrap();
+    app.dispatch(Action::NextTab).await.unwrap();
+    app.dispatch(Action::OpenSelectedTitle).await.unwrap();
+
+    assert_eq!(app.state().mode, Mode::Episodes);
+    assert_eq!(app.state().current_title.as_ref().unwrap().name, "Frieren");
+    assert_eq!(app.state().episodes.len(), 3);
 }

@@ -4,6 +4,7 @@ use ayoru::player::detect::{DetectError, Player};
 use ayoru::tui::action::Action;
 use ayoru::tui::controller::TuiController;
 use ayoru::tui::library::{LibraryState, SavedTitle, SavedWatch};
+use ayoru::tui::state::{Mode, Tab};
 use ayoru::tui::storage::LibraryStorage;
 
 struct SearchProvider;
@@ -92,4 +93,95 @@ async fn toggling_favorite_updates_library_and_persists() {
 
     let loaded = storage.load().unwrap();
     assert_eq!(loaded.favorites.len(), 1);
+}
+
+#[tokio::test]
+async fn favorites_tab_opens_selected_title_into_episode_flow() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("library.json");
+    let storage = LibraryStorage::new(path.clone());
+    storage
+        .save(&LibraryState {
+            favorites: vec![SavedTitle {
+                id: "show-1".into(),
+                name: "Frieren".into(),
+            }],
+            history: vec![],
+            recently_watched: vec![],
+        })
+        .unwrap();
+    let mut app = TuiController::with_storage(SearchProvider, NoopPlayerRuntime, storage)
+        .await
+        .unwrap();
+
+    app.dispatch(Action::NextTab).await.unwrap();
+    app.dispatch(Action::OpenSelectedTitle).await.unwrap();
+
+    assert_eq!(app.state().active_tab, Tab::Favorites);
+    assert_eq!(app.state().mode, Mode::Episodes);
+    assert_eq!(app.state().current_title.as_ref().unwrap().name, "Frieren");
+}
+
+#[tokio::test]
+async fn deleting_selected_favorite_updates_library_and_persists() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("library.json");
+    let storage = LibraryStorage::new(path.clone());
+    storage
+        .save(&LibraryState {
+            favorites: vec![SavedTitle {
+                id: "show-1".into(),
+                name: "Frieren".into(),
+            }],
+            history: vec![],
+            recently_watched: vec![],
+        })
+        .unwrap();
+    let mut app = TuiController::with_storage(SearchProvider, NoopPlayerRuntime, storage.clone())
+        .await
+        .unwrap();
+
+    app.dispatch(Action::NextTab).await.unwrap();
+    app.dispatch(Action::DeleteSelectedItem).await.unwrap();
+
+    assert!(app.library().favorites.is_empty());
+    assert!(storage.load().unwrap().favorites.is_empty());
+}
+
+#[tokio::test]
+async fn clearing_history_removes_all_entries_and_persists() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("library.json");
+    let storage = LibraryStorage::new(path.clone());
+    storage
+        .save(&LibraryState {
+            favorites: vec![],
+            history: vec![SavedWatch {
+                title: SavedTitle {
+                    id: "show-1".into(),
+                    name: "Frieren".into(),
+                },
+                episode: 3,
+                watched_at: 1,
+            }],
+            recently_watched: vec![SavedWatch {
+                title: SavedTitle {
+                    id: "show-1".into(),
+                    name: "Frieren".into(),
+                },
+                episode: 3,
+                watched_at: 1,
+            }],
+        })
+        .unwrap();
+    let mut app = TuiController::with_storage(SearchProvider, NoopPlayerRuntime, storage.clone())
+        .await
+        .unwrap();
+
+    app.dispatch(Action::NextTab).await.unwrap();
+    app.dispatch(Action::NextTab).await.unwrap();
+    app.dispatch(Action::ClearHistory).await.unwrap();
+
+    assert!(app.library().history.is_empty());
+    assert!(storage.load().unwrap().history.is_empty());
 }

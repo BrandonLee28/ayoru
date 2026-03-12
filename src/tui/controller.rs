@@ -1,10 +1,11 @@
 use crate::app::{PlayerRuntime, ProviderRuntime};
+use crate::core::models::{Episode, Title};
 use crate::core::playback::{PlaybackError, attempt_with_fallback};
 use crate::core::stream_ranker::rank_streams;
 use crate::errors::AppError;
 use crate::tui::action::{Action, Effect};
 use crate::tui::library::{LibraryState, SavedTitle, SavedWatch};
-use crate::tui::state::TuiState;
+use crate::tui::state::{Tab, TuiState};
 use crate::tui::storage::LibraryStorage;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -142,6 +143,67 @@ where
                     }
                 }
             }
+            Some(Effect::PlayHistoryEntry) => {
+                let Some(watch) = self.state.history.get(self.state.selected_history).cloned()
+                else {
+                    return Ok(());
+                };
+
+                let title = Title {
+                    id: watch.title.id.clone(),
+                    name: watch.title.name.clone(),
+                };
+                let episode = Episode {
+                    number: watch.episode,
+                };
+
+                let mut streams = self
+                    .provider
+                    .streams(&title.id, episode.number, true)
+                    .await
+                    .map_err(AppError::Provider)?;
+                if streams.is_empty() {
+                    self.state.is_loading = false;
+                    self.state.message = Some("No playable streams found".to_string());
+                    return Ok(());
+                }
+
+                rank_streams(&mut streams);
+
+                let player = self
+                    .player
+                    .detect()
+                    .map_err(|e| AppError::NoSupportedPlayer(e.to_string()))?;
+
+                let title_name = title.name.clone();
+                let episode_number = episode.number;
+                let player_runtime = &self.player;
+                let playback_result =
+                    attempt_with_fallback(&streams, Duration::from_secs(6), |stream| {
+                        let url = stream.url.clone();
+                        let title_name = title_name.clone();
+                        async move {
+                            player_runtime
+                                .launch_and_confirm(player, &url, &title_name, episode_number)
+                                .await
+                        }
+                    })
+                    .await;
+
+                self.state.is_loading = false;
+                match playback_result {
+                    Ok(()) => {
+                        self.record_watch(&watch.title, watch.episode)?;
+                        self.state.message = Some("Playback started".to_string());
+                        Ok(())
+                    }
+                    Err(PlaybackError::AllFailed) => {
+                        self.state.message =
+                            Some("Playback failed after trying all providers".to_string());
+                        Ok(())
+                    }
+                }
+            }
             Some(Effect::ToggleFavoriteForSelectedTitle) => {
                 if let Some(title) = self.selected_title() {
                     self.library.toggle_favorite(title);
@@ -150,25 +212,36 @@ where
                 }
                 Ok(())
             }
+            Some(Effect::DeleteSelectedLibraryItem) => {
+                match self.state.active_tab {
+                    Tab::Favorites => {
+                        self.library
+                            .remove_favorite_at(self.state.selected_favorite);
+                    }
+                    Tab::History => {
+                        self.library.remove_history_at(self.state.selected_history);
+                    }
+                    Tab::MediaBrowser => {}
+                }
+                self.sync_library_to_state();
+                self.persist_library()?;
+                Ok(())
+            }
+            Some(Effect::ClearHistoryLibrary) => {
+                self.library.clear_history();
+                self.sync_library_to_state();
+                self.persist_library()?;
+                Ok(())
+            }
             None => Ok(()),
         }
     }
 
     fn selected_title(&self) -> Option<SavedTitle> {
-        if let Some(title) = &self.state.current_title {
-            return Some(SavedTitle {
-                id: title.id.clone(),
-                name: title.name.clone(),
-            });
-        }
-
-        self.state
-            .results
-            .get(self.state.selected_result)
-            .map(|title| SavedTitle {
-                id: title.id.clone(),
-                name: title.name.clone(),
-            })
+        self.state.selected_title().map(|title| SavedTitle {
+            id: title.id,
+            name: title.name,
+        })
     }
 
     fn record_watch(&mut self, title: &SavedTitle, episode: u32) -> Result<(), AppError> {
@@ -195,6 +268,7 @@ where
         self.state.favorites = self.library.favorites.clone();
         self.state.recently_watched = self.library.recently_watched.clone();
         self.state.history = self.library.history.clone();
+        self.state.clamp_library_selections();
     }
 }
 

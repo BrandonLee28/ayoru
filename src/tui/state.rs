@@ -11,17 +11,17 @@ pub enum Mode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Panel {
+pub enum Tab {
     #[default]
-    Search,
-    Main,
-    ContextRail,
+    MediaBrowser,
+    Favorites,
+    History,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TuiState {
     pub mode: Mode,
-    pub focused_panel: Panel,
+    pub active_tab: Tab,
     pub search_focused: bool,
     pub query: String,
     pub is_loading: bool,
@@ -31,8 +31,10 @@ pub struct TuiState {
     pub episodes: Vec<Episode>,
     pub selected_episode: usize,
     pub favorites: Vec<SavedTitle>,
-    pub recently_watched: Vec<SavedWatch>,
+    pub selected_favorite: usize,
     pub history: Vec<SavedWatch>,
+    pub selected_history: usize,
+    pub recently_watched: Vec<SavedWatch>,
     pub message: Option<String>,
 }
 
@@ -40,7 +42,7 @@ impl Default for TuiState {
     fn default() -> Self {
         Self {
             mode: Mode::Search,
-            focused_panel: Panel::Search,
+            active_tab: Tab::MediaBrowser,
             search_focused: true,
             query: String::new(),
             is_loading: false,
@@ -50,8 +52,10 @@ impl Default for TuiState {
             episodes: vec![],
             selected_episode: 0,
             favorites: vec![],
-            recently_watched: vec![],
+            selected_favorite: 0,
             history: vec![],
+            selected_history: 0,
+            recently_watched: vec![],
             message: None,
         }
     }
@@ -62,6 +66,7 @@ impl TuiState {
         match action {
             Action::InsertChar(ch) => {
                 if self.mode == Mode::Search {
+                    self.active_tab = Tab::MediaBrowser;
                     self.search_focused = true;
                 }
                 self.query.push(ch);
@@ -69,6 +74,7 @@ impl TuiState {
             }
             Action::DeleteChar => {
                 if self.mode == Mode::Search {
+                    self.active_tab = Tab::MediaBrowser;
                     self.search_focused = true;
                 }
                 self.query.pop();
@@ -76,32 +82,46 @@ impl TuiState {
             }
             Action::FocusSearch => {
                 self.mode = Mode::Search;
-                self.focused_panel = Panel::Search;
+                self.active_tab = Tab::MediaBrowser;
                 self.search_focused = true;
                 self.message = None;
                 None
             }
-            Action::FocusNextPanel => {
-                self.focused_panel = match self.focused_panel {
-                    Panel::Search => Panel::ContextRail,
-                    Panel::ContextRail => Panel::Main,
-                    Panel::Main => Panel::Search,
-                };
+            Action::NextTab => {
+                if self.mode == Mode::Search {
+                    self.active_tab = match self.active_tab {
+                        Tab::MediaBrowser => Tab::Favorites,
+                        Tab::Favorites => Tab::History,
+                        Tab::History => Tab::MediaBrowser,
+                    };
+                    self.search_focused = false;
+                }
                 None
             }
-            Action::FocusPrevPanel => {
-                self.focused_panel = match self.focused_panel {
-                    Panel::Search => Panel::Main,
-                    Panel::Main => Panel::ContextRail,
-                    Panel::ContextRail => Panel::Search,
-                };
+            Action::PrevTab => {
+                if self.mode == Mode::Search {
+                    self.active_tab = match self.active_tab {
+                        Tab::MediaBrowser => Tab::History,
+                        Tab::Favorites => Tab::MediaBrowser,
+                        Tab::History => Tab::Favorites,
+                    };
+                    self.search_focused = false;
+                }
                 None
             }
             Action::MoveUp => {
                 match self.mode {
-                    Mode::Search => {
-                        self.selected_result = self.selected_result.saturating_sub(1);
-                    }
+                    Mode::Search => match self.active_tab {
+                        Tab::MediaBrowser => {
+                            self.selected_result = self.selected_result.saturating_sub(1);
+                        }
+                        Tab::Favorites => {
+                            self.selected_favorite = self.selected_favorite.saturating_sub(1);
+                        }
+                        Tab::History => {
+                            self.selected_history = self.selected_history.saturating_sub(1);
+                        }
+                    },
                     Mode::Episodes => {
                         self.selected_episode = self.selected_episode.saturating_sub(1);
                     }
@@ -111,12 +131,26 @@ impl TuiState {
             }
             Action::MoveDown => {
                 match self.mode {
-                    Mode::Search => {
-                        if !self.results.is_empty() {
-                            self.selected_result =
-                                (self.selected_result + 1).min(self.results.len() - 1);
+                    Mode::Search => match self.active_tab {
+                        Tab::MediaBrowser => {
+                            if !self.results.is_empty() {
+                                self.selected_result =
+                                    (self.selected_result + 1).min(self.results.len() - 1);
+                            }
                         }
-                    }
+                        Tab::Favorites => {
+                            if !self.favorites.is_empty() {
+                                self.selected_favorite =
+                                    (self.selected_favorite + 1).min(self.favorites.len() - 1);
+                            }
+                        }
+                        Tab::History => {
+                            if !self.history.is_empty() {
+                                self.selected_history =
+                                    (self.selected_history + 1).min(self.history.len() - 1);
+                            }
+                        }
+                    },
                     Mode::Episodes => {
                         if !self.episodes.is_empty() {
                             self.selected_episode =
@@ -128,7 +162,7 @@ impl TuiState {
                 None
             }
             Action::ToggleFavorite => {
-                if self.current_title.is_some() || !self.results.is_empty() {
+                if self.selected_title().is_some() {
                     Some(Effect::ToggleFavoriteForSelectedTitle)
                 } else {
                     None
@@ -136,17 +170,29 @@ impl TuiState {
             }
             Action::SubmitSearch => {
                 self.mode = Mode::Search;
-                self.focused_panel = Panel::Main;
+                self.active_tab = Tab::MediaBrowser;
                 self.search_focused = false;
                 self.is_loading = true;
                 self.message = None;
                 Some(Effect::SearchTitles(self.query.clone()))
             }
             Action::OpenSelectedTitle => {
-                let title = self.results.get(self.selected_result)?.clone();
+                let title = self.selected_title()?;
                 self.is_loading = true;
                 self.message = None;
                 Some(Effect::LoadEpisodes(title))
+            }
+            Action::PlaySelectedHistory => {
+                if self.mode == Mode::Search
+                    && self.active_tab == Tab::History
+                    && !self.history.is_empty()
+                {
+                    self.is_loading = true;
+                    self.message = None;
+                    Some(Effect::PlayHistoryEntry)
+                } else {
+                    None
+                }
             }
             Action::PlaySelectedEpisode => {
                 let title = self.current_title.clone()?;
@@ -156,9 +202,33 @@ impl TuiState {
                 self.message = None;
                 Some(Effect::PlayEpisode { title, episode })
             }
+            Action::DeleteSelectedItem => {
+                if self.mode == Mode::Search {
+                    match self.active_tab {
+                        Tab::Favorites if !self.favorites.is_empty() => {
+                            Some(Effect::DeleteSelectedLibraryItem)
+                        }
+                        Tab::History if !self.history.is_empty() => {
+                            Some(Effect::DeleteSelectedLibraryItem)
+                        }
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
+            Action::ClearHistory => {
+                if self.mode == Mode::Search
+                    && self.active_tab == Tab::History
+                    && !self.history.is_empty()
+                {
+                    Some(Effect::ClearHistoryLibrary)
+                } else {
+                    None
+                }
+            }
             Action::Back => {
                 self.mode = Mode::Search;
-                self.focused_panel = Panel::Main;
                 self.search_focused = false;
                 self.is_loading = false;
                 self.message = None;
@@ -166,7 +236,7 @@ impl TuiState {
             }
             Action::SearchCompleted(results) => {
                 self.is_loading = false;
-                self.focused_panel = Panel::Main;
+                self.active_tab = Tab::MediaBrowser;
                 self.selected_result = 0;
                 self.results = results;
                 None
@@ -202,5 +272,35 @@ impl TuiState {
                 None
             }
         }
+    }
+
+    pub fn selected_title(&self) -> Option<Title> {
+        if let Some(title) = &self.current_title {
+            return Some(title.clone());
+        }
+
+        match self.active_tab {
+            Tab::MediaBrowser => self.results.get(self.selected_result).cloned(),
+            Tab::Favorites => self
+                .favorites
+                .get(self.selected_favorite)
+                .map(|title| Title {
+                    id: title.id.clone(),
+                    name: title.name.clone(),
+                }),
+            Tab::History => self.history.get(self.selected_history).map(|watch| Title {
+                id: watch.title.id.clone(),
+                name: watch.title.name.clone(),
+            }),
+        }
+    }
+
+    pub fn clamp_library_selections(&mut self) {
+        self.selected_favorite = self
+            .selected_favorite
+            .min(self.favorites.len().saturating_sub(1));
+        self.selected_history = self
+            .selected_history
+            .min(self.history.len().saturating_sub(1));
     }
 }

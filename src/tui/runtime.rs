@@ -3,7 +3,7 @@ use crate::errors::AppError;
 use crate::provider::allanime::AllAnimeProvider;
 use crate::tui::action::Action;
 use crate::tui::controller::TuiController;
-use crate::tui::state::{Mode, Panel, TuiState};
+use crate::tui::state::{Mode, Tab, TuiState};
 use crate::tui::storage::LibraryStorage;
 use crate::tui::ui;
 use crossterm::event::{self, Event, KeyCode};
@@ -128,16 +128,34 @@ pub fn map_key_code_for_state(state: &TuiState, key_code: KeyCode) -> Option<Inp
         KeyCode::Backspace if state.mode == Mode::Search => {
             Some(InputCommand::Action(Action::DeleteChar))
         }
-        KeyCode::Tab => Some(InputCommand::Action(Action::FocusNextPanel)),
-        KeyCode::Char('h') if !state.search_focused => {
-            Some(InputCommand::Action(Action::FocusPrevPanel))
-        }
-        KeyCode::Char('l') if !state.search_focused => {
-            Some(InputCommand::Action(Action::FocusNextPanel))
-        }
+        KeyCode::Tab if state.mode == Mode::Search => Some(InputCommand::Action(Action::NextTab)),
+        KeyCode::Char('h') if !state.search_focused => Some(InputCommand::Action(Action::PrevTab)),
+        KeyCode::Char('l') if !state.search_focused => Some(InputCommand::Action(Action::NextTab)),
         KeyCode::Char('f') if !state.search_focused => {
             Some(InputCommand::Action(Action::ToggleFavorite))
         }
+        KeyCode::Char('o')
+            if state.mode == Mode::Search
+                && !state.search_focused
+                && state.active_tab == Tab::History =>
+        {
+            Some(InputCommand::Action(Action::OpenSelectedTitle))
+        }
+        KeyCode::Char('d')
+            if state.mode == Mode::Search
+                && !state.search_focused
+                && matches!(state.active_tab, Tab::Favorites | Tab::History) =>
+        {
+            Some(InputCommand::Action(Action::DeleteSelectedItem))
+        }
+        KeyCode::Char('D')
+            if state.mode == Mode::Search
+                && !state.search_focused
+                && state.active_tab == Tab::History =>
+        {
+            Some(InputCommand::Action(Action::ClearHistory))
+        }
+        KeyCode::Char('D') if state.mode == Mode::Search && !state.search_focused => None,
         KeyCode::Char('j') if state.mode == Mode::Search && state.search_focused => {
             Some(InputCommand::Action(Action::InsertChar('j')))
         }
@@ -192,15 +210,18 @@ async fn run_loop(
 }
 
 fn submit_action(state: &TuiState) -> Option<Action> {
-    if state.focused_panel == Panel::ContextRail {
-        return None;
-    }
-
     match state.mode {
-        Mode::Search if state.search_focused || state.results.is_empty() || state.is_loading => {
-            Some(Action::SubmitSearch)
-        }
-        Mode::Search => Some(Action::OpenSelectedTitle),
+        Mode::Search => match state.active_tab {
+            Tab::MediaBrowser
+                if state.search_focused || state.results.is_empty() || state.is_loading =>
+            {
+                Some(Action::SubmitSearch)
+            }
+            Tab::MediaBrowser if !state.results.is_empty() => Some(Action::OpenSelectedTitle),
+            Tab::Favorites if !state.favorites.is_empty() => Some(Action::OpenSelectedTitle),
+            Tab::History if !state.history.is_empty() => Some(Action::PlaySelectedHistory),
+            _ => None,
+        },
         Mode::Episodes => Some(Action::PlaySelectedEpisode),
         Mode::Launching => None,
     }

@@ -1,13 +1,12 @@
 # Ayoru
 
-`ayoru` is a terminal-first anime watcher with a direct CLI flow and a keyboard-driven TUI.
+`ayoru` is a terminal-first anime watcher built around a keyboard-driven TUI.
 
 It lets you search a show, pick an episode, resolve a stream, and open playback in a local player without bouncing between browser tabs and ad-heavy sites.
 
 ## Why Use It
 
 - bare `ayoru` opens the full-screen TUI
-- fast CLI flow for `ayoru "<show>"`
 - full-screen TUI with search, favorites, history, and recently watched
 - automatic stream ranking and playback fallback
 - local player launch with `mpv`, `iina`, or `vlc`
@@ -66,21 +65,7 @@ source ~/.zprofile
 
 ## Quick Start
 
-### Watch from the CLI
-
-```bash
-ayoru "frieren"
-```
-
-This flow:
-
-1. searches for the title
-2. lets you pick a result
-3. lets you pick an episode
-4. resolves streams
-5. opens playback in your local player
-
-### Open the TUI
+### Launch Ayoru
 
 ```bash
 ayoru
@@ -94,17 +79,17 @@ The TUI includes:
 - history
 - keyboard-first navigation
 
-`ayoru tui` also works if you prefer the explicit subcommand.
-
 ## TUI Controls
 
 - type to search when search is focused
 - `/` focus search
-- `Tab` move between shell panels
-- `h` / `l` move panel focus when search is not focused
-- `j` / `k` or arrow keys move inside the active panel
-- `Enter` confirm or select in the active flow
+- `Tab` move between `Media Browser`, `Favorites`, and `History`
+- `h` / `l` move between tabs when search is not focused
+- `j` / `k` or arrow keys move inside the active list
+- `Enter` open a title or play an episode in the active flow
 - `f` toggle favorite when search is not focused
+- `d` remove the selected item from favorites or history
+- `D` clear all history when the history tab is active
 - `Esc` back out of detail or playback states
 - `q` quit
 
@@ -179,9 +164,8 @@ cargo clippy --all-targets -- -D warnings
 
 ```text
 src/
-  app.rs          app orchestration and runtime traits
-  args.rs         command parsing
-  cli/            prompt-style picker flow
+  app.rs          provider and player runtime traits
+  args.rs         command validation
   core/           models, playback policy, stream ranking
   player/         player detection and launch
   provider/       provider integrations
@@ -217,6 +201,5 @@ The GitHub Actions workflow publishes both:
 
 ## Notes
 
-- The CLI and TUI share the same provider and playback stack.
 - Favorites, history, and recently watched are local-only by design.
 - Design and implementation notes live under `docs/plans/`.
