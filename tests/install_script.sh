@@ -22,6 +22,9 @@ assert_eq "$(normalize_arch x86_64)" "x86_64"
 assert_eq "$(asset_name darwin arm64)" "ayoru-darwin-aarch64.tar.gz"
 assert_eq "$(asset_name linux x86_64)" "ayoru-linux-x86_64.tar.gz"
 assert_eq \
+    "$(release_download_url)" \
+    "https://github.com/BrandonLee28/ayoru/releases/download/alpha/ayoru-$(normalize_os "$(uname -s)")-$(normalize_arch "$(uname -m)").tar.gz"
+assert_eq \
     "$(release_asset_url v0.1.0 darwin arm64)" \
     "https://github.com/BrandonLee28/ayoru/releases/download/v0.1.0/ayoru-darwin-aarch64.tar.gz"
 assert_eq "$(shell_profile_for zsh /tmp/test-home)" "/tmp/test-home/.zprofile"

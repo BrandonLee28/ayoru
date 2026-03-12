@@ -34,7 +34,7 @@ curl -fsSL https://raw.githubusercontent.com/BrandonLee28/ayoru/main/scripts/ins
 What this does:
 
 - installs `ayoru` to `~/.local/bin/ayoru`
-- uses a GitHub release artifact when available
+- uses the rolling `alpha` GitHub Release built from `main`
 - falls back to a source build if a release artifact is missing
 - adds `~/.local/bin` to your shell `PATH` if needed
 
@@ -128,7 +128,7 @@ command -v ayoru
 
 ### The installer falls back to building from source
 
-That is expected when a matching release artifact is unavailable for your platform. In that case the installer uses `cargo build --release`, so Rust and Cargo must be installed.
+That is expected when a matching `alpha` release artifact is unavailable for your platform. In that case the installer uses `cargo build --release`, so Rust and Cargo must be installed.
 
 ### Playback does not start
 
@@ -201,14 +201,19 @@ The installer expects release artifacts to use these names:
 
 ## Maintainer Release Flow
 
-Push a version tag to publish release assets:
+Pushes to `main` refresh the rolling `alpha` release used by the installer by default.
+
+Push a version tag when you want a versioned release:
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The GitHub Actions workflow builds the four installer tarballs and attaches them to the matching GitHub Release.
+The GitHub Actions workflow publishes both:
+
+- a rolling `alpha` prerelease from `main`
+- versioned releases for `v0.1.x` tags
 
 ## Notes
 
