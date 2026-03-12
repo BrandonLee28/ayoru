@@ -40,4 +40,21 @@ impl LibraryState {
 
         self.recently_watched.insert(0, watch);
     }
+
+    pub fn remove_favorite_at(&mut self, index: usize) {
+        if index < self.favorites.len() {
+            self.favorites.remove(index);
+        }
+    }
+
+    pub fn remove_history_at(&mut self, index: usize) {
+        if index < self.history.len() {
+            self.history.remove(index);
+        }
+    }
+
+    pub fn clear_history(&mut self) {
+        self.history.clear();
+        self.recently_watched.clear();
+    }
 }

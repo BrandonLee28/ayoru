@@ -1,10 +1,6 @@
 use crate::core::models::{Episode, StreamCandidate, Title};
-use crate::core::playback::{PlaybackError, attempt_with_fallback};
-use crate::core::stream_ranker::rank_streams;
-use crate::errors::AppError;
 use crate::player::detect::{DetectError, Player, detect_player};
 use crate::player::launch::spawn_player;
-use std::time::Duration;
 
 #[async_trait::async_trait]
 pub trait ProviderRuntime {
@@ -30,11 +26,6 @@ pub trait PlayerRuntime {
     ) -> Result<(), std::io::Error>;
 }
 
-pub trait PickerRuntime {
-    fn pick_title(&self, titles: &[Title]) -> Result<usize, AppError>;
-    fn pick_episode(&self, episodes: &[Episode]) -> Result<usize, AppError>;
-}
-
 pub struct SystemPlayerRuntime;
 
 #[async_trait::async_trait]
@@ -53,70 +44,4 @@ impl PlayerRuntime for SystemPlayerRuntime {
         let media_title = format!("{title} Episode {episode}");
         spawn_player(player, stream_url, &media_title)
     }
-}
-
-pub async fn run_with<P, R, K>(
-    query: &str,
-    provider: &P,
-    runtime: &R,
-    picker: &K,
-) -> Result<(), AppError>
-where
-    P: ProviderRuntime + Sync,
-    R: PlayerRuntime + Sync,
-    K: PickerRuntime + Sync,
-{
-    if query.trim().is_empty() {
-        return Err(AppError::NoQuery);
-    }
-
-    let titles = provider.search(query).await.map_err(AppError::Provider)?;
-    if titles.is_empty() {
-        return Err(AppError::NoResults(query.to_string()));
-    }
-
-    let title_idx = picker.pick_title(&titles)?;
-    let title = titles
-        .get(title_idx)
-        .ok_or_else(|| AppError::Provider("Invalid title selection".to_string()))?;
-
-    let mut episodes = provider
-        .episodes(&title.id)
-        .await
-        .map_err(AppError::Provider)?;
-    episodes.sort_by_key(|e| e.number);
-
-    let episode_idx = picker.pick_episode(&episodes)?;
-    let episode = episodes
-        .get(episode_idx)
-        .ok_or_else(|| AppError::Provider("Invalid episode selection".to_string()))?;
-
-    let mut streams = provider
-        .streams(&title.id, episode.number, true)
-        .await
-        .map_err(AppError::Provider)?;
-    if streams.is_empty() {
-        return Err(AppError::NoPlayableStreams);
-    }
-    rank_streams(&mut streams);
-
-    let player = runtime
-        .detect()
-        .map_err(|e| AppError::NoSupportedPlayer(e.to_string()))?;
-
-    let title_name = title.name.clone();
-    let episode_no = episode.number;
-    attempt_with_fallback(&streams, Duration::from_secs(6), |stream| {
-        let url = stream.url.clone();
-        let title_name = title_name.clone();
-        async move {
-            runtime
-                .launch_and_confirm(player, &url, &title_name, episode_no)
-                .await
-        }
-    })
-    .await
-    .map_err(|e| match e {
-        PlaybackError::AllFailed => AppError::PlaybackFailed,
-    })
 }

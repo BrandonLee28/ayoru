@@ -1,30 +1,32 @@
-# ani-cli-clone Foundation (Pre-TUI)
+# Ayoru High-Level Architecture
 
-This document captures the current CLI foundation so the next phase can build a TUI on top of stable core modules instead of reworking business logic.
+This document describes the current TUI-first architecture for Ayoru.
 
 ## Product Slice Implemented
 
 Current flow (working):
-1. `ani <query>`
-2. Interactive title selection
-3. Interactive episode selection
-4. Automatic stream resolution (AllAnime-based)
-5. Automatic player detection/launch (`mpv -> iina -> vlc`)
-6. Playback fallback with bounded retries
+1. Launch `ayoru`
+2. Search for a title inside the TUI
+3. Pick an episode
+4. Resolve streams from AllAnime
+5. Detect and launch a local player (`mpv -> iina -> vlc`)
+6. Retry playback across ranked stream providers when needed
 
 ## Architecture
 
-Code is organized by responsibility so UI layers can be swapped:
+Code is organized so the TUI owns interaction while shared modules handle provider access and playback:
 
 - `src/main.rs`
-- Runtime wiring for provider, picker, and player runtimes.
+- Validates the bare `ayoru` invocation and launches the TUI runtime.
+
+- `src/tui/`
+- TUI shell, controller, state machine, renderer, storage, and runtime loop.
 
 - `src/app.rs`
-- App orchestration and runtime traits:
+- Shared runtime traits and system player implementation:
   - `ProviderRuntime`
-  - `PickerRuntime`
   - `PlayerRuntime`
-- `run_with(...)` is the main use-case pipeline.
+  - `SystemPlayerRuntime`
 
 - `src/core/`
 - Pure business logic:
@@ -41,11 +43,6 @@ Code is organized by responsibility so UI layers can be swapped:
   - `detect.rs`
   - `launch.rs` (adds required referrer flags per player)
 
-- `src/cli/`
-- UI interaction layer:
-  - `picker.rs` (input state machine)
-  - `interactive.rs` (terminal picker implementation)
-
 - `src/errors.rs`
 - User-facing error model (`AppError`).
 
@@ -56,14 +53,9 @@ Code is organized by responsibility so UI layers can be swapped:
 - Must return stream candidates with provider identity preserved.
 - Must degrade gracefully when specific source endpoints fail.
 
-### PickerRuntime
-- Owns user selection UX only.
-- Returns selected indexes or cancellation.
-- `run_with` remains UI-framework-agnostic.
-
 ### PlayerRuntime
 - Handles executable detection and launch semantics.
-- Playback-related HTTP headers/referrers are player-specific and live here.
+- Playback-related HTTP headers and referrers are player-specific and live here.
 
 ## Current Policies Locked In
 
@@ -72,16 +64,6 @@ Code is organized by responsibility so UI layers can be swapped:
 - Fallback policy: one attempt per provider per run.
 - Playback timeout: 6 seconds.
 - Failure behavior: clear errors, no debug UI.
-
-## What Is Ready For TUI
-
-The TUI can replace only the picker runtime while reusing everything else.
-
-Recommended path:
-1. Add a new `TuiPickerRuntime` under `src/cli/` (or `src/tui/`).
-2. Keep `run_with(...)` unchanged.
-3. Keep provider/player/core modules unchanged.
-4. Add TUI-specific tests around picker behavior and cancellation.
 
 ## Risks / Follow-up Items
 
@@ -92,12 +74,11 @@ Recommended path:
 ## Test Coverage Snapshot
 
 Existing tests cover:
-- args parsing
+- args parsing for the TUI-only entrypoint
 - ranking policy
-- provider parsing/decode
-- picker state transitions
-- player detection/launch command specs
+- provider parsing and decode
+- player detection and launch command specs
+- TUI controller, state, rendering, storage, and runtime behavior
 - fallback timeout policy
-- app-level failure paths
 
-This foundation is intentionally modular so a richer TUI can be layered without rewriting provider/business logic.
+This foundation is intentionally centered on a single interaction model so the product surface stays narrow and coherent.

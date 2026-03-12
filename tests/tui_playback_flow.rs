@@ -3,7 +3,9 @@ use ayoru::core::models::{Episode, StreamCandidate, Title};
 use ayoru::player::detect::{DetectError, Player};
 use ayoru::tui::action::Action;
 use ayoru::tui::controller::TuiController;
+use ayoru::tui::library::{LibraryState, SavedTitle, SavedWatch};
 use ayoru::tui::state::Mode;
+use ayoru::tui::storage::LibraryStorage;
 
 struct PlaybackProvider;
 
@@ -104,4 +106,34 @@ async fn successful_playback_records_recent_and_history() {
 
     assert_eq!(app.library().history.len(), 1);
     assert_eq!(app.library().recently_watched.len(), 1);
+}
+
+#[tokio::test]
+async fn pressing_enter_on_history_plays_saved_episode_directly() {
+    let dir = tempfile::tempdir().unwrap();
+    let storage = LibraryStorage::new(dir.path().join("library.json"));
+    storage
+        .save(&LibraryState {
+            favorites: vec![],
+            history: vec![SavedWatch {
+                title: SavedTitle {
+                    id: "show-1".into(),
+                    name: "Frieren".into(),
+                },
+                episode: 9,
+                watched_at: 1,
+            }],
+            recently_watched: vec![],
+        })
+        .unwrap();
+    let mut app = TuiController::with_storage(PlaybackProvider, SuccessPlayerRuntime, storage)
+        .await
+        .unwrap();
+
+    app.dispatch(Action::NextTab).await.unwrap();
+    app.dispatch(Action::NextTab).await.unwrap();
+    app.dispatch(Action::PlaySelectedHistory).await.unwrap();
+
+    assert_eq!(app.state().mode, Mode::Search);
+    assert_eq!(app.state().message.as_deref(), Some("Playback started"));
 }
