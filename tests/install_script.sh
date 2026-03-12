@@ -109,7 +109,7 @@ done
 
 cat > "$dest/ayoru" <<'EOINSTALL'
 #!/bin/sh
-printf 'ayoru 0.1.0\n'
+printf 'ayoru 0.1.1\n'
 EOINSTALL
 chmod 755 "$dest/ayoru"
 EOF
@@ -133,6 +133,77 @@ case "$stdin_output" in
 esac
 
 test -x "$stdin_install_dir/ayoru"
-assert_eq "$("$stdin_install_dir/ayoru")" "ayoru 0.1.0"
+assert_eq "$("$stdin_install_dir/ayoru")" "ayoru 0.1.1"
+
+fallback_bin_dir=$(mktemp -d)
+fallback_home=$(mktemp -d)
+fallback_install_dir=$(mktemp -d)
+
+cat > "$fallback_bin_dir/curl" <<'EOF'
+#!/bin/sh
+
+for arg in "$@"; do
+    case "$arg" in
+        *releases/download/*)
+            printf 'curl: (56) The requested URL returned error: 502\n' >&2
+            exit 56
+            ;;
+    esac
+done
+
+exit 0
+EOF
+chmod 755 "$fallback_bin_dir/curl"
+
+cat > "$fallback_bin_dir/cargo" <<'EOF'
+#!/bin/sh
+
+manifest_path=
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --manifest-path)
+            shift
+            manifest_path=$1
+            ;;
+    esac
+    shift
+done
+
+repo_dir=$(dirname "$manifest_path")
+mkdir -p "$repo_dir/target/release"
+cat > "$repo_dir/target/release/ayoru" <<'EOINSTALL'
+#!/bin/sh
+printf 'ayoru 0.1.1\n'
+EOINSTALL
+chmod 755 "$repo_dir/target/release/ayoru"
+EOF
+chmod 755 "$fallback_bin_dir/cargo"
+
+fallback_output=$(
+    env \
+        PATH="$fallback_bin_dir:$PATH" \
+        HOME="$fallback_home" \
+        AYORU_INSTALL_DIR="$fallback_install_dir" \
+        sh "$REPO_ROOT/scripts/install.sh" 2>&1
+)
+
+case "$fallback_output" in
+    *"Release install for alpha unavailable, falling back to source build."*)
+        ;;
+    *)
+        printf 'expected fallback message, got: %s\n' "$fallback_output" >&2
+        exit 1
+        ;;
+esac
+
+case "$fallback_output" in
+    *"tar:"*|*"cp:"*)
+        printf 'unexpected extraction noise during fallback: %s\n' "$fallback_output" >&2
+        exit 1
+        ;;
+esac
+
+test -x "$fallback_install_dir/ayoru"
+assert_eq "$("$fallback_install_dir/ayoru")" "ayoru 0.1.1"
 
 printf 'install helper tests passed\n'

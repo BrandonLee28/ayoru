@@ -162,12 +162,12 @@ download_to() {
 
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL "$url" -o "$output"
-        return 0
+        return $?
     fi
 
     if command -v wget >/dev/null 2>&1; then
         wget -qO "$output" "$url"
-        return 0
+        return $?
     fi
 
     printf 'missing required command: curl or wget\n' >&2
@@ -202,8 +202,19 @@ install_from_release() {
 
     trap 'rm -rf "$tmpdir"' EXIT INT TERM
 
-    download_to "$(release_download_url "$version")" "$archive"
-    tar -xzf "$archive" -C "$bin_dir"
+    if ! download_to "$(release_download_url "$version")" "$archive"; then
+        return 1
+    fi
+
+    if ! tar -xzf "$archive" -C "$bin_dir"; then
+        return 1
+    fi
+
+    if [ ! -f "$bin_dir/ayoru" ]; then
+        printf 'release archive did not contain ayoru binary\n' >&2
+        return 1
+    fi
+
     install_binary "$bin_dir/ayoru" "$install_dir"
 }
 
@@ -301,7 +312,7 @@ main() {
         install_from_source "$install_dir"
     else
         if ! install_from_release "$version" "$install_dir"; then
-            printf 'Release install unavailable, falling back to source build.\n' >&2
+            printf 'Release install for %s unavailable, falling back to source build.\n' "$version" >&2
             install_from_source "$install_dir"
         fi
     fi
