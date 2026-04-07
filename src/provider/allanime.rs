@@ -13,6 +13,7 @@ const STREAMS_GQL: &str = "query ($showId: String!, $translationType: VaildTrans
 
 pub struct AllAnimeProvider {
     client: reqwest::Client,
+    api_base: String,
 }
 
 impl Default for AllAnimeProvider {
@@ -28,17 +29,22 @@ impl AllAnimeProvider {
                 .user_agent("Mozilla/5.0")
                 .build()
                 .expect("reqwest client"),
+            api_base: ALLANIME_API.to_string(),
         }
     }
 
-    async fn gql_request(&self, variables: Value, query: &str) -> Result<String, String> {
+    fn build_gql_request(&self, variables: Value, query: &str) -> reqwest::RequestBuilder {
         self.client
-            .get(format!("{ALLANIME_API}/api"))
+            .post(format!("{}/api", self.api_base))
             .header("Referer", ALLANIME_REFERER)
-            .query(&[
-                ("variables", variables.to_string()),
-                ("query", query.to_string()),
-            ])
+            .json(&json!({
+                "query": query,
+                "variables": variables,
+            }))
+    }
+
+    async fn gql_request(&self, variables: Value, query: &str) -> Result<String, String> {
+        self.build_gql_request(variables, query)
             .send()
             .await
             .map_err(|e| e.to_string())?
@@ -362,8 +368,9 @@ fn decode_pair(pair: &str) -> Result<char, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::expand_streams_with_fetch;
+    use super::{AllAnimeProvider, SEARCH_GQL, expand_streams_with_fetch};
     use crate::core::models::StreamCandidate;
+    use serde_json::json;
 
     #[tokio::test]
     async fn skips_failed_clock_source_and_keeps_other_candidates() {
@@ -389,5 +396,45 @@ mod tests {
 
         assert_eq!(expanded.len(), 1);
         assert_eq!(expanded[0].provider, "youtube");
+    }
+
+    #[tokio::test]
+    async fn gql_requests_use_post_json_payload() {
+        let provider = AllAnimeProvider {
+            client: reqwest::Client::builder()
+                .user_agent("Mozilla/5.0")
+                .build()
+                .expect("reqwest client"),
+            api_base: "https://api.test".to_string(),
+        };
+
+        let request = provider
+            .build_gql_request(json!({ "showId": "demo" }), SEARCH_GQL)
+            .build()
+            .expect("build request");
+
+        assert_eq!(request.method(), reqwest::Method::POST);
+        assert_eq!(request.url().as_str(), "https://api.test/api");
+        assert_eq!(
+            request.headers()["referer"],
+            reqwest::header::HeaderValue::from_static("https://allmanga.to")
+        );
+        assert_eq!(
+            request.headers()["content-type"],
+            reqwest::header::HeaderValue::from_static("application/json")
+        );
+
+        let body = request
+            .body()
+            .and_then(reqwest::Body::as_bytes)
+            .expect("json body bytes");
+        let actual: serde_json::Value = serde_json::from_slice(body).expect("valid json body");
+        assert_eq!(
+            actual,
+            json!({
+                "query": SEARCH_GQL,
+                "variables": { "showId": "demo" }
+            })
+        );
     }
 }
