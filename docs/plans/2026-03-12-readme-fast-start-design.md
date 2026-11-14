@@ -1,6 +1,6 @@
 # README Fast Start Design
 
-**Goal:** Rewrite the README so a first-time GitHub visitor can install Ayoru, verify it works, and launch their first show without reading internal project details first.
+**Goal:** Rewrite the README so a first-time GitHub visitor can install ayoru, verify it works, and launch their first show without reading internal project details first.
 
 ## Audience
 
@@ -22,7 +22,7 @@ That means:
 ## Proposed Structure
 
 1. Title and one-line description
-2. Why use Ayoru
+2. Why use ayoru
 3. Requirements
 4. Install
 5. Quick start

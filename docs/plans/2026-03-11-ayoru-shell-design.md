@@ -1,4 +1,4 @@
-# Ayoru Dashboard Shell Design
+# ayoru Dashboard Shell Design
 
 **Date:** 2026-03-11
 
@@ -8,7 +8,7 @@ Evolve the current TUI from a prompt-like flow into a persistent media dashboard
 
 ## Product Direction
 
-Ayoru should feel like a quiet premium media tool rather than a terminal picker. The new shell should take inspiration from structured, stateful interfaces like the Codex UI reference, but translate that structure into a media workflow:
+ayoru should feel like a quiet premium media tool rather than a terminal picker. The new shell should take inspiration from structured, stateful interfaces like the Codex UI reference, but translate that structure into a media workflow:
 
 - the center is what the user is doing now
 - the side rail is what the user might want next
@@ -26,7 +26,7 @@ The TUI becomes a persistent dashboard rather than a sequence of isolated views.
 ### Primary Regions
 
 - `Header band`
-  - Ayoru wordmark
+  - ayoru wordmark
   - subtle mode/status line
   - focused search input
 - `Main content area`

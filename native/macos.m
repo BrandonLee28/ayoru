@@ -3,20 +3,26 @@
 #import <AVFoundation/AVFoundation.h>
 
 // These controls belong to the GPUI window. All bridge calls run on its main thread.
-@interface AyoruControls : NSObject <NSSearchFieldDelegate>
+@interface ayoruControls : NSObject <NSSearchFieldDelegate>
 @property(nonatomic, strong) NSSearchField *search;
 @property(nonatomic, strong) AVPlayerView *video;
 @property(nonatomic, copy) NSString *submitted;
 @end
 
-@implementation AyoruControls
+@implementation ayoruControls
 - (void)submitSearch:(id)sender {
     self.submitted = self.search.stringValue;
 }
 @end
 
+void ayoru_set_app_icon(const void *bytes, size_t length) {
+    NSData *data = [NSData dataWithBytes:bytes length:length];
+    NSImage *icon = [[NSImage alloc] initWithData:data];
+    if (icon) NSApp.applicationIconImage = icon;
+}
+
 void *ayoru_controls_create(void) {
-    AyoruControls *controls = [AyoruControls new];
+    ayoruControls *controls = [ayoruControls new];
     controls.search = [[NSSearchField alloc] initWithFrame:NSZeroRect];
     controls.search.placeholderString = @"Search anime…";
     controls.search.controlSize = NSControlSizeSmall;
@@ -47,12 +53,12 @@ static void place(NSView *view, NSView *parent, double x, double y, double w, do
 
 void ayoru_controls_place(void *handle, void *parent, int video,
                           double x, double y, double w, double h) {
-    AyoruControls *controls = (__bridge AyoruControls *)handle;
+    ayoruControls *controls = (__bridge ayoruControls *)handle;
     place(video ? controls.video : controls.search, (__bridge NSView *)parent, x, y, w, h);
 }
 
 void ayoru_search_visible(void *handle, bool visible) {
-    AyoruControls *controls = (__bridge AyoruControls *)handle;
+    ayoruControls *controls = (__bridge ayoruControls *)handle;
     if (!visible && controls.search.currentEditor) {
         [controls.search.window makeFirstResponder:controls.search.superview];
     }
@@ -60,21 +66,21 @@ void ayoru_search_visible(void *handle, bool visible) {
 }
 
 void ayoru_search_focus(void *handle) {
-    AyoruControls *controls = (__bridge AyoruControls *)handle;
+    ayoruControls *controls = (__bridge ayoruControls *)handle;
     [controls.search.window makeFirstResponder:controls.search];
 }
 
 const char *ayoru_search_take(void *handle) {
-    AyoruControls *controls = (__bridge AyoruControls *)handle;
+    ayoruControls *controls = (__bridge ayoruControls *)handle;
     return controls.submitted ? controls.submitted.UTF8String : NULL;
 }
 
 void ayoru_search_clear_submission(void *handle) {
-    ((__bridge AyoruControls *)handle).submitted = nil;
+    ((__bridge ayoruControls *)handle).submitted = nil;
 }
 
 void ayoru_video_load(void *handle, const char *url, const char *referrer) {
-    AyoruControls *controls = (__bridge AyoruControls *)handle;
+    ayoruControls *controls = (__bridge ayoruControls *)handle;
     [controls.video.player pause];
     NSURL *mediaURL = [NSURL URLWithString:[NSString stringWithUTF8String:url]];
     NSMutableDictionary *options = [@{
@@ -98,7 +104,7 @@ void ayoru_video_load(void *handle, const char *url, const char *referrer) {
 
 // 0 = buffering, 1 = actually playing, -1 = failure, 2 = finished.
 int ayoru_video_status(void *handle) {
-    AVPlayer *player = ((__bridge AyoruControls *)handle).video.player;
+    AVPlayer *player = ((__bridge ayoruControls *)handle).video.player;
     if (!player) return 0;
     if (player.status == AVPlayerStatusFailed || player.currentItem.status == AVPlayerItemStatusFailed) return -1;
     double time = CMTimeGetSeconds(player.currentTime);
@@ -109,19 +115,19 @@ int ayoru_video_status(void *handle) {
 }
 
 const char *ayoru_video_error(void *handle) {
-    AVPlayer *player = ((__bridge AyoruControls *)handle).video.player;
+    AVPlayer *player = ((__bridge ayoruControls *)handle).video.player;
     return (player.currentItem.error ?: player.error).localizedDescription.UTF8String;
 }
 
 void ayoru_video_stop(void *handle) {
-    AyoruControls *controls = (__bridge AyoruControls *)handle;
+    ayoruControls *controls = (__bridge ayoruControls *)handle;
     [controls.video.player pause];
     controls.video.player = nil;
     controls.video.hidden = YES;
 }
 
 void ayoru_controls_destroy(void *handle) {
-    AyoruControls *controls = (__bridge_transfer AyoruControls *)handle;
+    ayoruControls *controls = (__bridge_transfer ayoruControls *)handle;
     [controls.video.player pause];
     [controls.video removeFromSuperview];
     [controls.search removeFromSuperview];

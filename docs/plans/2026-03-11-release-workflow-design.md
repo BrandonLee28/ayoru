@@ -1,10 +1,10 @@
-# Ayoru Release Workflow Design
+# ayoru Release Workflow Design
 
 **Date:** 2026-03-11
 
 ## Goal
 
-Automate GitHub Releases for Ayoru so pushing a version tag publishes the release assets expected by the installer.
+Automate GitHub Releases for ayoru so pushing a version tag publishes the release assets expected by the installer.
 
 ## Trigger
 

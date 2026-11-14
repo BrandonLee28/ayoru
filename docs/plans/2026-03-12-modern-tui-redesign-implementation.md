@@ -4,7 +4,7 @@
 
 ## Goal
 
-Redesign the Ayoru terminal UI so it feels like a modern media browser instead of a boxed utility dashboard. Keep the current color palette, but improve layout hierarchy, selection treatment, spacing, and the visual relationship between the main content pane and the supporting rail.
+Redesign the ayoru terminal UI so it feels like a modern media browser instead of a boxed utility dashboard. Keep the current color palette, but improve layout hierarchy, selection treatment, spacing, and the visual relationship between the main content pane and the supporting rail.
 
 ## Constraints
 

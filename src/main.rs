@@ -6,7 +6,7 @@ fn main() {
     ayoru::desktop::run();
     #[cfg(not(target_os = "macos"))]
     {
-        eprintln!("Ayoru Desktop currently supports macOS only.");
+        eprintln!("ayoru Desktop currently supports macOS only.");
         std::process::exit(1);
     }
 }

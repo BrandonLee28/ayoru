@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Rewrite `README.md` so new users can install and run Ayoru quickly from the GitHub page.
+**Goal:** Rewrite `README.md` so new users can install and run ayoru quickly from the GitHub page.
 
 **Architecture:** Keep the README as a single document, but reorganize it around the user journey: understand the tool, confirm requirements, install, verify, and run. Move contributor and release details lower so they do not block onboarding.
 

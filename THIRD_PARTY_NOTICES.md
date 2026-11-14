@@ -1,8 +1,8 @@
 # Design reference
 
-Ayoru's desktop appearance adapts the content-ink helpers, section labels, sidebar navigation geometry, grouped icon hover states, and compact typography, neutral dark palette, and inset workspace layout of [Monocode Native](https://github.com/hardbeat920/monocode), GPUI reference [`native-v0.16.0-preview.14`](https://github.com/hardbeat920/monocode/tree/native-v0.16.0-preview.14).
+ayoru's desktop appearance adapts the content-ink helpers, section labels, sidebar navigation geometry, grouped icon hover states, and compact typography, neutral dark palette, and inset workspace layout of [Monocode Native](https://github.com/hardbeat920/monocode), GPUI reference [`native-v0.16.0-preview.14`](https://github.com/hardbeat920/monocode/tree/native-v0.16.0-preview.14).
 
-Reference files: `crates/monocode-gpui/src/theme.rs` and `crates/monocode-gpui/src/shell/sidebar_list.rs`. Ayoru uses its own anime browsing and playback interface and branding. The Hugeicons SVGs below are copied from Monocode’s assets and embedded in the app.
+Reference files: `crates/monocode-gpui/src/theme.rs` and `crates/monocode-gpui/src/shell/sidebar_list.rs`. ayoru uses its own anime browsing and playback interface and branding. The Hugeicons SVGs below are copied from Monocode’s assets and embedded in the app.
 
 Monocode's license follows:
 

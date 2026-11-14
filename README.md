@@ -1,12 +1,13 @@
-# Ayoru
+# ayoru
 
-A quieter way to watch anime. Ayoru is a native macOS desktop app built in Rust with [GPUI](https://gpui.rs/), with a Monocode-adapted charcoal interface, compact system-type sidebar, poster shelves, and video playback inside the window.
+A quieter way to watch anime. ayoru is a native macOS desktop app built in Rust with [GPUI](https://gpui.rs/), with a Monocode-adapted charcoal interface, compact system-type sidebar, poster shelves, and video playback inside the window.
 
 - Search titles and browse their episodes with mouse or keyboard.
 - Save favorites and replay episodes from history or Recently Watched.
 - Watch inside the app with native playback controls, seeking, volume, and fullscreen.
 - Automatically try ranked stream providers when playback fails.
 - Keep your library locally, without accounts or sync.
+- Check API availability in the sidebar footer; it refreshes on launch and every minute after each check. The indicator checks the GraphQL API, while individual video hosts may still be unavailable.
 
 The desktop app replaces the terminal interface. macOS is the first supported platform; Linux and Windows builds are not included in this migration.
 
@@ -23,7 +24,7 @@ Download the `.dmg` for your Mac from [Releases](https://github.com/BrandonLee28
 - Apple silicon: `ayoru-darwin-aarch64.dmg`
 - Intel: `ayoru-darwin-x86_64.dmg`
 
-Open the disk image and drag **Ayoru** to **Applications**. macOS 12 or later is required. No external video player or Rust installation is needed to run the app.
+Open the disk image and drag **ayoru** to **Applications**. macOS 12 or later is required. No external video player or Rust installation is needed to run the app.
 
 Desktop assets become available after this branch is merged and the release workflow runs. Builds are ad hoc signed unless a Developer ID identity is supplied during packaging. For downloaded builds that macOS blocks, use **System Settings → Privacy & Security → Open Anyway** after attempting to open the app. Official Developer ID signing and notarization require the maintainer's Apple credentials.
 
@@ -31,7 +32,7 @@ The shell installer installs the app to `~/Applications`:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/BrandonLee28/ayoru/main/scripts/install.sh | sh
-open ~/Applications/Ayoru.app
+open ~/Applications/ayoru.app
 ```
 
 Set `AYORU_INSTALL_DIR` to choose another application directory. The installer no longer changes your shell profile or installs a terminal executable.
@@ -47,7 +48,7 @@ Type a title in the search field and press **Return**. Click a poster to see epi
 - **Return / Space**: activate a focused control
 - **⌘W / ⌘Q**: close / quit
 
-Video uses macOS AVFoundation/AVKit and supports the media formats available to the system, including compatible MP4 and HLS streams. On macOS 14 and later, Ayoru supplies the MIME type for the provider’s extensionless MP4 links. Older systems rely on format detection and fall back when a source cannot be identified. It retains the sub-first stream ranking and six-second startup timeout, trying each provider once. History is recorded only after playback starts. Some sources may be unavailable or use codecs unsupported by macOS; failures move to the next provider and eventually show an error with a Retry control.
+Video uses macOS AVFoundation/AVKit and supports the media formats available to the system, including compatible MP4 and HLS streams. On macOS 14 and later, ayoru supplies the MIME type for the provider’s extensionless MP4 links. Older systems rely on format detection and fall back when a source cannot be identified. It retains the sub-first stream ranking and six-second startup timeout, trying each provider once. History is recorded only after playback starts. Some sources may be unavailable or use codecs unsupported by macOS; failures move to the next provider and eventually show an error with a Retry control.
 
 Provider availability depends on the upstream service and your network. Frontend format changes can still require an integration update, but rotating playback epochs and build-specific mask values are read at runtime. A blocked request, missing episodes, missing artwork, or exhausted stream candidates appears in the interface. Titles without artwork use a text card.
 
@@ -68,10 +69,10 @@ Install Apple's Command Line Tools (`xcode-select --install`) and [Rust](https:/
 cargo run
 cargo build --release --locked
 sh scripts/package-macos.sh
-open dist/Ayoru.app
+open dist/ayoru.app
 ```
 
-Packaging creates `dist/Ayoru.app`, an architecture-specific app tarball, and a drag-to-Applications DMG. To package a cross-target build, pass its binary, output directory, and architecture:
+Packaging creates `dist/ayoru.app`, an architecture-specific app tarball, and a drag-to-Applications DMG. To package a cross-target build, pass its binary, output directory, and architecture:
 
 ```sh
 sh scripts/package-macos.sh target/aarch64-apple-darwin/release/ayoru dist aarch64

@@ -4,6 +4,7 @@ use ayoru::{app::ProviderRuntime, provider::allanime::AllAnimeProvider};
 #[ignore = "requires live provider access"]
 async fn searches_artwork_episodes_and_playable_streams() {
     let provider = AllAnimeProvider::new();
+    provider.check_health().await.expect("API status probe");
     let titles = provider.search("Frieren").await.expect("search provider");
     let title = titles
         .iter()

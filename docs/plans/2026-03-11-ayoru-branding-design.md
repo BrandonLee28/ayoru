@@ -1,18 +1,18 @@
-# Ayoru Branding Mock
+# ayoru Branding Mock
 
 **Date:** 2026-03-11
 
 ## Core Positioning
 
-**Name:** Ayoru
+**Name:** ayoru
 
 **Primary Line:** A quieter way to watch anime.
 
-**One-line Description:** Ayoru is a cleaner, safer way to watch anime with less friction.
+**One-line Description:** ayoru is a cleaner, safer way to watch anime with less friction.
 
 ## Brand Intent
 
-Ayoru should feel calm, trustworthy, and deliberate.
+ayoru should feel calm, trustworthy, and deliberate.
 
 It is not a loud anime brand, not a hacker toy, and not a flashy piracy identity. The project promise is that it removes friction and reduces the sketchiness users normally accept when trying to watch anime for free.
 
@@ -137,7 +137,7 @@ If a symbol exists, keep it minimal:
 This is a text-only directional mock, not final artwork:
 
 ```text
-AYORU
+ayoru
 
 A quieter way to watch anime.
 ```
@@ -155,7 +155,7 @@ The spacing should feel deliberate and premium, not aggressive.
 
 ### Option A
 
-**Ayoru**
+**ayoru**
 
 A quieter way to watch anime.
 
@@ -163,7 +163,7 @@ Cleaner playback. Less friction. Less sketchiness.
 
 ### Option B
 
-**Ayoru**
+**ayoru**
 
 Watch anime with less noise.
 
@@ -171,7 +171,7 @@ A cleaner, safer path from search to playback.
 
 ### Option C
 
-**Ayoru**
+**ayoru**
 
 Quiet by design.
 
@@ -194,7 +194,7 @@ The TUI should feel understated, not busy.
 ### Header mock
 
 ```text
-AYORU
+ayoru
 A quieter way to watch anime.
 ```
 
@@ -271,7 +271,7 @@ The upcoming native app should extend the same identity rather than reinvent it.
 
 Lock the public-facing identity to:
 
-- **Name:** Ayoru
+- **Name:** ayoru
 - **Tagline:** A quieter way to watch anime.
 - **Description:** A cleaner, safer way to watch anime with less friction.
 - **Brand direction:** dark premium quiet trust

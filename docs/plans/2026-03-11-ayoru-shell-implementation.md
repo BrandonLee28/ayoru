@@ -1,8 +1,8 @@
-# Ayoru Dashboard Shell Implementation Plan
+# ayoru Dashboard Shell Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build a persistent Ayoru dashboard shell with local history, favorites, and recently watched while keeping the existing CLI flow untouched.
+**Goal:** Build a persistent ayoru dashboard shell with local history, favorites, and recently watched while keeping the existing CLI flow untouched.
 
 **Architecture:** Expand the current `src/tui/` state/controller/runtime into a panel-based shell and add a small persistence layer under `src/tui/` or `src/core/` for local watch data. Keep the old `ani <query>` CLI path unchanged and drive all new behavior through the `ani tui` path.
 
@@ -300,7 +300,7 @@ Add render tests for shell presence:
 fn shell_render_shows_search_header_and_context_sections() {
     let buffer = render_to_buffer(&shell_fixture_state(), 120, 32);
 
-    assert!(buffer_contains(&buffer, "AYORU"));
+    assert!(buffer_contains(&buffer, "ayoru"));
     assert!(buffer_contains(&buffer, "Recently watched"));
     assert!(buffer_contains(&buffer, "Favorites"));
     assert!(buffer_contains(&buffer, "History"));
@@ -319,7 +319,7 @@ Expected: FAIL because the renderer only supports the current simple three-block
   - main content panel
   - side context rail
 - Make active panel focus visually obvious
-- Keep the neutral premium Ayoru palette
+- Keep the neutral premium ayoru palette
 
 **Step 4: Run test to verify it passes**
 

@@ -14,7 +14,7 @@ while [ "$#" -gt 0 ]; do
     esac
     shift
 done
-[ "$(uname -s)" = Darwin ] || { echo 'Ayoru Desktop currently supports macOS only.' >&2; exit 1; }
+[ "$(uname -s)" = Darwin ] || { echo 'ayoru Desktop currently supports macOS only.' >&2; exit 1; }
 case "$(uname -m)" in arm64|aarch64) ARCH=aarch64 ;; x86_64) ARCH=x86_64 ;; *) echo 'Unsupported architecture.' >&2; exit 1 ;; esac
 TEMP=$(mktemp -d)
 trap 'rm -rf "$TEMP"' EXIT HUP INT TERM
@@ -22,7 +22,7 @@ if [ "$MODE" = release ]; then
     URL="https://github.com/$REPO_SLUG/releases/download/$VERSION/ayoru-darwin-$ARCH.tar.gz"
     curl -fL "$URL" -o "$TEMP/ayoru.tar.gz"
     tar -xzf "$TEMP/ayoru.tar.gz" -C "$TEMP"
-    APP="$TEMP/Ayoru.app"
+    APP="$TEMP/ayoru.app"
     [ -x "$APP/Contents/MacOS/ayoru" ] || { echo 'Release archive has no desktop app. Use --from-source until the desktop release is published.' >&2; exit 1; }
 else
     if [ -f Cargo.toml ] && [ -f scripts/package-macos.sh ]; then
@@ -33,8 +33,8 @@ else
     fi
     (cd "$REPO" && cargo build --release --locked)
     AYORU_SKIP_DMG=1 sh "$REPO/scripts/package-macos.sh" "$REPO/target/release/ayoru" "$TEMP/package" "$ARCH"
-    APP="$TEMP/package/Ayoru.app"
+    APP="$TEMP/package/ayoru.app"
 fi
 mkdir -p "$INSTALL_DIR"
-ditto "$APP" "$INSTALL_DIR/Ayoru.app"
-printf 'Installed %s/Ayoru.app\nLaunch with: open "%s/Ayoru.app"\n' "$INSTALL_DIR" "$INSTALL_DIR"
+ditto "$APP" "$INSTALL_DIR/ayoru.app"
+printf 'Installed %s/ayoru.app\nLaunch with: open "%s/ayoru.app"\n' "$INSTALL_DIR" "$INSTALL_DIR"

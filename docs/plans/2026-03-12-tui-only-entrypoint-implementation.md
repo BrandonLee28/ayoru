@@ -103,7 +103,7 @@ Files:
 
 Actions:
 - Remove references to direct CLI playback and `ayoru tui`.
-- Describe Ayoru as a TUI-only application launched with `ayoru`.
+- Describe ayoru as a TUI-only application launched with `ayoru`.
 - Update repo layout notes to remove `src/cli/`.
 
 Run:

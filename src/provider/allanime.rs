@@ -34,6 +34,12 @@ impl AllAnimeProvider {
         }
     }
 
+    /// Probe the same GraphQL endpoint used for episodes and stream requests.
+    pub async fn check_health(&self) -> Result<(), String> {
+        let body = self.gql_request(json!({}), "query { __typename }").await?;
+        validate_health_response(&body)
+    }
+
     async fn gql_request(&self, variables: Value, query: &str) -> Result<String, String> {
         let response = self
             .client
@@ -56,6 +62,15 @@ impl AllAnimeProvider {
             .map_err(|e| e.to_string())?;
         validate_graphql_response(&body)?;
         Ok(body)
+    }
+}
+
+fn validate_health_response(raw: &str) -> Result<(), String> {
+    validate_graphql_response(raw)?;
+    let value: Value = serde_json::from_str(raw).map_err(|e| e.to_string())?;
+    match value["data"]["__typename"].as_str() {
+        Some(name) if !name.is_empty() => Ok(()),
+        _ => Err("Provider returned an invalid health response".into()),
     }
 }
 
@@ -432,9 +447,23 @@ mod tests {
     use super::{
         collect_payload_streams, decode_source_url, expand_streams_with_fetch,
         parse_stream_candidates, provider_status_error, validate_graphql_response,
+        validate_health_response,
     };
     use crate::core::models::StreamCandidate;
     use reqwest::StatusCode;
+
+    #[test]
+    fn health_requires_a_valid_graphql_reply() {
+        assert!(validate_health_response(r#"{"data":{"__typename":"Query"}}"#).is_ok());
+        for raw in [
+            "<html>Blocked</html>",
+            "{}",
+            r#"{"data":null}"#,
+            r#"{"errors":[{"message":"Unavailable"}],"data":{"__typename":"Query"}}"#,
+        ] {
+            assert!(validate_health_response(raw).is_err());
+        }
+    }
 
     #[test]
     fn reports_graphql_rejections_instead_of_silently_returning_no_streams() {

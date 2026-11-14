@@ -1,10 +1,10 @@
-# Ayoru Installer Design
+# ayoru Installer Design
 
 **Date:** 2026-03-11
 
 ## Goal
 
-Provide a first-class one-command install path for Ayoru that feels like a normal CLI tool, without requiring users to understand Cargo or Rust toolchain setup.
+Provide a first-class one-command install path for ayoru that feels like a normal CLI tool, without requiring users to understand Cargo or Rust toolchain setup.
 
 ## Public Install Entry Point
 

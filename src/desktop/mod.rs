@@ -63,6 +63,7 @@ enum Reply {
     Episodes(u64, Result<Vec<Episode>, String>),
     Streams(u64, Result<Vec<StreamCandidate>, String>),
     Artwork(String, PathBuf),
+    ApiStatus(bool),
 }
 
 struct Desktop {
@@ -75,6 +76,7 @@ struct Desktop {
     focus: FocusHandle,
     page: Page,
     sidebar_visible: bool,
+    api_online: Option<bool>,
     query: String,
     results: Vec<Title>,
     selected: Option<SavedTitle>,
@@ -124,6 +126,7 @@ impl Desktop {
             focus: cx.focus_handle(),
             page: Page::WatchNow,
             sidebar_visible: true,
+            api_online: None,
             query: String::new(),
             results: vec![],
             selected: None,
@@ -149,6 +152,20 @@ impl Desktop {
             .cloned()
             .collect();
         app.fetch_artwork(titles);
+        let sender = app.sender.clone();
+        app.runtime.spawn(async move {
+            let provider = AllAnimeProvider::new();
+            loop {
+                let online = matches!(
+                    tokio::time::timeout(Duration::from_secs(10), provider.check_health()).await,
+                    Ok(Ok(()))
+                );
+                if sender.send(Reply::ApiStatus(online)).is_err() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_secs(60)).await;
+            }
+        });
         app
     }
 
@@ -393,6 +410,9 @@ impl Desktop {
                         self.message = Some(error);
                     }
                 },
+                Reply::ApiStatus(online) => {
+                    self.api_online = Some(online);
+                }
                 Reply::Artwork(url, path) => {
                     self.artwork.insert(url, path);
                 }
@@ -497,6 +517,7 @@ pub fn run() {
     Application::new()
         .with_assets(ui::Assets)
         .run(|cx: &mut App| {
+            native::set_app_icon();
             cx.bind_keys([
                 KeyBinding::new("cmd-q", Quit, None),
                 KeyBinding::new("cmd-w", CloseWindow, None),
@@ -514,8 +535,8 @@ pub fn run() {
             cx.on_action(|_: &Quit, cx| cx.quit());
             cx.set_menus(vec![
                 Menu {
-                    name: "Ayoru".into(),
-                    items: vec![MenuItem::action("Quit Ayoru", Quit)],
+                    name: "ayoru".into(),
+                    items: vec![MenuItem::action("Quit ayoru", Quit)],
                 },
                 Menu {
                     name: "Edit".into(),
@@ -548,7 +569,7 @@ pub fn run() {
                     window_min_size: Some(size(px(860.), px(620.))),
                     window_background: WindowBackgroundAppearance::Blurred,
                     titlebar: Some(TitlebarOptions {
-                        title: Some("Ayoru".into()),
+                        title: Some("ayoru".into()),
                         appears_transparent: true,
                         traffic_light_position: Some(point(px(16.), px(17.))),
                     }),
@@ -563,7 +584,7 @@ pub fn run() {
                     })
                 },
             )
-            .expect("open Ayoru window");
+            .expect("open ayoru window");
         });
 }
 

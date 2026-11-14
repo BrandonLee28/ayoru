@@ -1,6 +1,6 @@
-# Ayoru desktop architecture
+# ayoru desktop architecture
 
-Ayoru is a macOS desktop application. Rust/GPUI owns the graphical shell; AppKit and AVKit supply native search input and embedded video controls. The previous terminal renderer, terminal runtime, external-player detection, and player launch code have been removed.
+ayoru is a macOS desktop application. Rust/GPUI owns the graphical shell; AppKit and AVKit supply native search input and embedded video controls. The previous terminal renderer, terminal runtime, external-player detection, and player launch code have been removed.
 
 ## User flow
 
@@ -29,7 +29,7 @@ Artwork downloads have time and size limits and live in the macOS user cache. Mi
 
 `Cargo.toml` pins GPUI 0.2.2 and `rust-toolchain.toml` pins Rust 1.92. GPUI's `runtime_shaders` feature avoids the full-Xcode Metal compiler requirement. `build.rs` compiles the small Objective-C bridge and links system frameworks; there is no external player, bundled browser, or extra playback daemon.
 
-`scripts/package-macos.sh` creates Ayoru.app with its icon and Info.plist, signs it, and produces app tarballs and DMGs. GitHub Actions builds Apple silicon and Intel versions. Developer ID signing and notarization are optional local packaging settings; CI uses ad hoc signing until credentials are configured.
+`scripts/package-macos.sh` creates ayoru.app with its icon and Info.plist, signs it, and produces app tarballs and DMGs. GitHub Actions builds Apple silicon and Intel versions. Developer ID signing and notarization are optional local packaging settings; CI uses ad hoc signing until credentials are configured.
 
 ## Validation and limits
 

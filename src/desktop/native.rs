@@ -7,6 +7,7 @@ use std::{
 };
 
 unsafe extern "C" {
+    fn ayoru_set_app_icon(bytes: *const u8, length: usize);
     fn ayoru_controls_create() -> *mut c_void;
     fn ayoru_controls_place(
         handle: *mut c_void,
@@ -26,6 +27,11 @@ unsafe extern "C" {
     fn ayoru_video_status(handle: *mut c_void) -> i32;
     fn ayoru_video_error(handle: *mut c_void) -> *const c_char;
     fn ayoru_video_stop(handle: *mut c_void);
+}
+
+pub fn set_app_icon() {
+    let icon = include_bytes!("../../assets/app-icon.png");
+    unsafe { ayoru_set_app_icon(icon.as_ptr(), icon.len()) }
 }
 
 pub struct Controls {

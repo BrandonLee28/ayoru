@@ -248,15 +248,28 @@ impl Desktop {
             )
             .child(
                 div()
-                    .h(px(39.))
-                    .px_3()
+                    .h(px(44.))
+                    .px_4()
                     .flex_none()
                     .flex()
                     .items_center()
-                    .gap_1p5()
-                    .text_size(px(13.))
+                    .gap_3()
+                    .text_size(px(14.))
                     .font_weight(FontWeight::SEMIBOLD)
                     .font_family("Menlo")
+                    .child(
+                        div()
+                            .size(px(24.))
+                            .rounded_md()
+                            .bg(rgb(RAISED))
+                            .border_1()
+                            .border_color(content(0.1))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_size(px(11.))
+                            .child("Ay"),
+                    )
                     .child("ayoru")
                     .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move()),
             )
@@ -437,9 +450,23 @@ impl Desktop {
                     .gap_2()
                     .text_size(px(11.))
                     .text_color(content(0.35))
-                    .child("Local library")
+                    .child(
+                        div()
+                            .size(px(6.))
+                            .rounded_full()
+                            .bg(rgb(match self.api_online {
+                                Some(true) => 0x78b892,
+                                Some(false) => 0xd48282,
+                                None => 0xc2a56d,
+                            })),
+                    )
+                    .child("AllAnime API")
                     .child(div().flex_1())
-                    .child(format!("v{}", env!("CARGO_PKG_VERSION"))),
+                    .child(match self.api_online {
+                        Some(true) => "Online",
+                        Some(false) => "Unavailable",
+                        None => "Checking…",
+                    }),
             )
             .into_any_element()
     }
@@ -577,7 +604,7 @@ impl Desktop {
                         .child(button("get-started", "Find a series").mt_2().bg(rgb(TEXT)).text_color(rgb(PANE)).hover(|s| s.bg(rgb(0xffffff)))
                             .on_click(cx.listener(|view, _, _, cx| { view.navigate(Page::Search, cx); view.controls.focus_search(); }))))
                         .child(div().py_6().flex().justify_center().gap_2().text_size(px(11.)).text_color(rgb(MUTED))
-                            .child("Search titles").child("·").child("Save favorites").child("·").child("Watch in Ayoru"));
+                            .child("Search titles").child("·").child("Save favorites").child("·").child("Watch in ayoru"));
                 } else {
                     content = content.child(
                         div()
