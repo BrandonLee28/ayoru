@@ -9,12 +9,14 @@ fn ranks_by_provider_reliability_first() {
             url: "u1".to_string(),
             is_sub: true,
             resolution: Some(1080),
+            referrer: None,
         },
         StreamCandidate {
             provider: "wixmp".to_string(),
             url: "u2".to_string(),
             is_sub: true,
             resolution: Some(720),
+            referrer: None,
         },
     ];
 
@@ -30,12 +32,14 @@ fn prefers_subtitles_before_resolution() {
             url: "u1".to_string(),
             is_sub: false,
             resolution: Some(1080),
+            referrer: None,
         },
         StreamCandidate {
             provider: "youtube".to_string(),
             url: "u2".to_string(),
             is_sub: true,
             resolution: Some(720),
+            referrer: None,
         },
     ];
 

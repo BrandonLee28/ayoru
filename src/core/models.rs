@@ -2,6 +2,7 @@
 pub struct Title {
     pub id: String,
     pub name: String,
+    pub poster: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,4 +16,5 @@ pub struct StreamCandidate {
     pub url: String,
     pub is_sub: bool,
     pub resolution: Option<u16>,
+    pub referrer: Option<String>,
 }

@@ -1,205 +1,113 @@
 # Ayoru
 
-`ayoru` is a terminal-first anime watcher built around a keyboard-driven TUI.
+A quieter way to watch anime. Ayoru is a native macOS desktop app built in Rust with [GPUI](https://gpui.rs/), with a Monocode-adapted charcoal interface, compact system-type sidebar, poster shelves, and video playback inside the window.
 
-It lets you search a show, pick an episode, resolve a stream, and open playback in a local player without bouncing between browser tabs and ad-heavy sites.
+- Search titles and browse their episodes with mouse or keyboard.
+- Save favorites and replay episodes from history or Recently Watched.
+- Watch inside the app with native playback controls, seeking, volume, and fullscreen.
+- Automatically try ranked stream providers when playback fails.
+- Keep your library locally, without accounts or sync.
 
-## Why Use It
+The desktop app replaces the terminal interface. macOS is the first supported platform; Linux and Windows builds are not included in this migration.
 
-- bare `ayoru` opens the full-screen TUI
-- full-screen TUI with search, favorites, history, and recently watched
-- automatic stream ranking and playback fallback
-- local player launch with `mpv`, `iina`, or `vlc`
-- local-only saved state for the TUI
+## Current provider status
 
-## Requirements
+The AllAnime integration uses the service's current `mkissa.to` / `api.mkissa.net` endpoints. It reads public bootstrap parameters from the live frontend, obtains the current playback key, generates episode request tokens, and authenticates encrypted source responses. No downloaded JavaScript is executed, and no third-party key feed is required.
 
-Before installing, make sure you have:
-
-- Rust stable toolchain
-- one supported player installed:
-  - `mpv`
-  - `iina`
-  - `vlc`
+Live validation on November 14, 2026 passed search, artwork metadata, episode listing, source resolution, and embedded playback of a resolved episode. The sidebar uses native macOS background blur with a charcoal tint; the content pane uses an opaque inset surface.
 
 ## Install
 
-### One-command install
+Download the `.dmg` for your Mac from [Releases](https://github.com/BrandonLee28/ayoru/releases):
 
-```bash
+- Apple silicon: `ayoru-darwin-aarch64.dmg`
+- Intel: `ayoru-darwin-x86_64.dmg`
+
+Open the disk image and drag **Ayoru** to **Applications**. macOS 12 or later is required. No external video player or Rust installation is needed to run the app.
+
+Desktop assets become available after this branch is merged and the release workflow runs. Builds are ad hoc signed unless a Developer ID identity is supplied during packaging. For downloaded builds that macOS blocks, use **System Settings → Privacy & Security → Open Anyway** after attempting to open the app. Official Developer ID signing and notarization require the maintainer's Apple credentials.
+
+The shell installer installs the app to `~/Applications`:
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/BrandonLee28/ayoru/main/scripts/install.sh | sh
+open ~/Applications/Ayoru.app
 ```
 
-What this does:
+Set `AYORU_INSTALL_DIR` to choose another application directory. The installer no longer changes your shell profile or installs a terminal executable.
 
-- installs `ayoru` to `~/.local/bin/ayoru`
-- uses the rolling `alpha` GitHub Release built from `main`
-- falls back to a source build if a release artifact is missing
-- adds `~/.local/bin` to your shell `PATH` if needed
+## Use
 
-Verify the install:
+Type a title in the search field and press **Return**. Click a poster to see episodes, then select an episode and press **Play**. During playback, click an episode number to switch episodes. **Watch Now** contains your recent episodes and favorites. Favorites and History have removal controls; **Clear History** also clears Recently Watched.
 
-```bash
-command -v ayoru
-ayoru --version
+- **⌘B**: collapse or expand the sidebar
+- **⌘K / ⌘F**: expand the sidebar and focus search
+- **Escape**: stop playback and return to episodes, or leave title details
+- **Tab / Shift-Tab**: move between graphical controls
+- **Return / Space**: activate a focused control
+- **⌘W / ⌘Q**: close / quit
+
+Video uses macOS AVFoundation/AVKit and supports the media formats available to the system, including compatible MP4 and HLS streams. On macOS 14 and later, Ayoru supplies the MIME type for the provider’s extensionless MP4 links. Older systems rely on format detection and fall back when a source cannot be identified. It retains the sub-first stream ranking and six-second startup timeout, trying each provider once. History is recorded only after playback starts. Some sources may be unavailable or use codecs unsupported by macOS; failures move to the next provider and eventually show an error with a Retry control.
+
+Provider availability depends on the upstream service and your network. Frontend format changes can still require an integration update, but rotating playback epochs and build-specific mask values are read at runtime. A blocked request, missing episodes, missing artwork, or exhausted stream candidates appears in the interface. Titles without artwork use a text card.
+
+## Your existing library
+
+The desktop app reads the same JSON file as the terminal version, including favorites, history, and recently watched:
+
+- `$XDG_STATE_HOME/ayoru/library.json`, when set
+- otherwise `~/.local/state/ayoru/library.json`
+
+Existing entries load without migration; poster URLs are optional. Saves replace the file atomically. An unreadable library is preserved and saving stays disabled until you repair it and restart the app. Artwork is cached in `~/Library/Caches/ayoru/artwork` and can be deleted without losing your library.
+
+## Build and package
+
+Install Apple's Command Line Tools (`xcode-select --install`) and [Rust](https://rustup.rs/). The repository pins Rust 1.92. GPUI compiles its Metal shaders at runtime, so full Xcode is not required.
+
+```sh
+cargo run
+cargo build --release --locked
+sh scripts/package-macos.sh
+open dist/Ayoru.app
 ```
 
-### Install from source with Cargo
+Packaging creates `dist/Ayoru.app`, an architecture-specific app tarball, and a drag-to-Applications DMG. To package a cross-target build, pass its binary, output directory, and architecture:
 
-```bash
-git clone https://github.com/BrandonLee28/ayoru.git
-cd ayoru
-cargo install --path .
+```sh
+sh scripts/package-macos.sh target/aarch64-apple-darwin/release/ayoru dist aarch64
 ```
 
-Cargo installs the binary to `~/.cargo/bin/ayoru`.
+`AYORU_SKIP_DMG=1` builds the app and tarball only. `AYORU_SIGNING_IDENTITY` selects a configured code-signing identity (default: ad hoc). `AYORU_NOTARY_PROFILE` optionally submits and staples the DMG using an existing `notarytool` keychain profile. The workflow builds separate Apple silicon and Intel artifacts; pushes to `main` update `alpha`, while version tags publish versioned releases.
 
-If `ayoru` is not found in a new terminal, add Cargo's bin directory to your `PATH`.
+## Development checks
 
-For `zsh` on macOS:
-
-```bash
-echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.zprofile
-source ~/.zprofile
-```
-
-## Quick Start
-
-### Launch Ayoru
-
-```bash
-ayoru
-```
-
-The TUI includes:
-
-- search
-- favorites
-- recently watched
-- history
-- keyboard-first navigation
-
-## TUI Controls
-
-- type to search when search is focused
-- `/` focus search
-- `Tab` move between `Media Browser`, `Favorites`, and `History`
-- `h` / `l` move between tabs when search is not focused
-- `j` / `k` or arrow keys move inside the active list
-- `Enter` open a title or play an episode in the active flow
-- `f` toggle favorite when search is not focused
-- `d` remove the selected item from favorites or history
-- `D` clear all history when the history tab is active
-- `Esc` back out of detail or playback states
-- `q` quit
-
-## Troubleshooting
-
-### `ayoru: command not found`
-
-The install likely succeeded, but your shell has not picked up the bin directory yet.
-
-If you used the one-command installer, open a new terminal or reload your shell profile:
-
-```bash
-source ~/.zprofile
-```
-
-Then check again:
-
-```bash
-command -v ayoru
-```
-
-### The installer falls back to building from source
-
-That is expected when a matching `alpha` release artifact is unavailable for your platform. In that case the installer uses `cargo build --release`, so Rust and Cargo must be installed.
-
-### Playback does not start
-
-Make sure at least one supported player is installed:
-
-- `mpv`
-- `iina`
-- `vlc`
-
-## Local Data
-
-The TUI stores local state at:
-
-- `$XDG_STATE_HOME/ayoru/library.json`, or
-- `~/.local/state/ayoru/library.json`
-
-This file stores favorites, recently watched, and history in JSON.
-
-## Current Scope
-
-Ayoru currently focuses on:
-
-- terminal-first playback
-- one provider integration
-- local player launch
-- local-only saved state
-
-It does not currently include:
-
-- accounts
-- sync
-- recommendations
-- collections
-- a native desktop app
-
-## Development
-
-Useful commands:
-
-```bash
-cargo run -- --help
-cargo test -q
+```sh
 cargo fmt --all -- --check
-cargo clippy --all-targets -- -D warnings
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+sh tests/install_script.sh
+sh tests/release_workflow.sh
+sh tests/native_macos.sh
 ```
 
-## Repo Layout
+The native smoke test checks Japanese search text, view placement, playback cleanup, and actual video decoding when `ffmpeg` is available to generate a local fixture. It requires access to macOS video services; filesystem sandboxing can prevent decode. The opt-in live check exercises search, artwork metadata, episodes, and stream resolution:
+
+```sh
+cargo test --test provider_live -- --ignored
+```
+
+## Source layout
 
 ```text
-src/
-  app.rs          provider and player runtime traits
-  args.rs         command validation
-  core/           models, playback policy, stream ranking
-  player/         player detection and launch
-  provider/       provider integrations
-  tui/            TUI shell, renderer, runtime, persistence
-tests/            integration and behavior tests
-docs/             design and implementation docs
+src/desktop/       GPUI interface, background requests, native control bridge
+src/library/       compatible saved library and storage
+src/session.rs     embedded playback fallback and history confirmation
+src/provider/      AllAnime requests, bootstrap/token protocol, and source resolution
+src/core/          models and stream ranking
+native/            AppKit search field, AVKit player, app icon drawing
+scripts/           desktop installation and app/DMG packaging
 ```
 
-## Release Asset Naming
+`docs/highlevel.md` describes the desktop architecture. Older documents under `docs/plans/` describe the retired terminal application.
 
-The installer expects release artifacts to use these names:
-
-- `ayoru-darwin-aarch64.tar.gz`
-- `ayoru-darwin-x86_64.tar.gz`
-- `ayoru-linux-aarch64.tar.gz`
-- `ayoru-linux-x86_64.tar.gz`
-
-## Maintainer Release Flow
-
-Pushes to `main` refresh the rolling `alpha` release used by the installer by default.
-
-Push a version tag when you want a versioned release:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The GitHub Actions workflow publishes both:
-
-- a rolling `alpha` prerelease from `main`
-- versioned releases for `v0.1.x` tags
-
-## Notes
-
-- Favorites, history, and recently watched are local-only by design.
-- Design and implementation notes live under `docs/plans/`.
+The desktop visual style is adapted from Monocode Native. See [design attribution](THIRD_PARTY_NOTICES.md).

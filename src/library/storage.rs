@@ -1,4 +1,4 @@
-use crate::tui::library::LibraryState;
+use crate::library::LibraryState;
 use std::fs;
 use std::path::PathBuf;
 
@@ -29,6 +29,21 @@ impl LibraryStorage {
         let json = serde_json::to_string_pretty(library)
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
 
-        fs::write(&self.path, json)
+        // Write beside the destination, then rename so an interrupted save keeps the old file.
+        let temporary = self
+            .path
+            .with_extension(format!("{}.tmp", std::process::id()));
+        fs::write(&temporary, json)?;
+        fs::rename(temporary, &self.path)
     }
+}
+
+pub fn default_library_path() -> PathBuf {
+    if let Some(root) = std::env::var_os("XDG_STATE_HOME") {
+        return PathBuf::from(root).join("ayoru/library.json");
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        return PathBuf::from(home).join(".local/state/ayoru/library.json");
+    }
+    PathBuf::from(".ayoru/library.json")
 }

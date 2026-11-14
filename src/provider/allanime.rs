@@ -1,15 +1,17 @@
+use super::allanime_crypto::{self as crypto, API, ORIGIN};
 use crate::app::ProviderRuntime;
 use crate::core::models::{Episode, StreamCandidate, Title};
+use reqwest::StatusCode;
 use serde_json::{Value, json};
 
-pub const ALLANIME_REFERER: &str = "https://allmanga.to";
+pub const ALLANIME_REFERER: &str = ORIGIN;
 pub const ALLANIME_BASE: &str = "allanime.day";
-pub const ALLANIME_API: &str = "https://api.allanime.day";
+pub const ALLANIME_API: &str = API;
 
-const SEARCH_GQL: &str = "query( $search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeEnumType $countryOrigin: VaildCountryOriginEnumType ) { shows( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) { edges { _id name availableEpisodes __typename } }}";
+const SEARCH_GQL: &str = "query( $search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeEnumType $countryOrigin: VaildCountryOriginEnumType ) { shows( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) { edges { _id name thumbnail availableEpisodes __typename } }}";
 const EPISODES_GQL: &str =
     "query ($showId: String!) { show( _id: $showId ) { _id availableEpisodesDetail }}";
-const STREAMS_GQL: &str = "query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) { episode( showId: $showId translationType: $translationType episodeString: $episodeString ) { episodeString sourceUrls }}";
+const STREAMS_GQL: &str = "query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) { episode( showId: $showId translationType: $translationType episodeString: $episodeString ) { episodeString sourceUrls show { _id countryOfOrigin } }}";
 
 pub struct AllAnimeProvider {
     client: reqwest::Client,
@@ -26,28 +28,62 @@ impl AllAnimeProvider {
         Self {
             client: reqwest::Client::builder()
                 .user_agent("Mozilla/5.0")
+                .timeout(std::time::Duration::from_secs(20))
                 .build()
                 .expect("reqwest client"),
         }
     }
 
     async fn gql_request(&self, variables: Value, query: &str) -> Result<String, String> {
-        self.client
-            .get(format!("{ALLANIME_API}/api"))
+        let response = self
+            .client
+            .post(format!("{ALLANIME_API}/api"))
             .header("Referer", ALLANIME_REFERER)
-            .query(&[
-                ("variables", variables.to_string()),
-                ("query", query.to_string()),
-            ])
+            .json(&json!({"query": query, "variables": variables}))
             .send()
             .await
-            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+
+        if let Some(message) = provider_status_error(response.status()) {
+            return Err(message);
+        }
+
+        let body = response
             .error_for_status()
             .map_err(|e| e.to_string())?
             .text()
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        validate_graphql_response(&body)?;
+        Ok(body)
     }
+}
+
+fn validate_graphql_response(raw: &str) -> Result<(), String> {
+    let value: Value = serde_json::from_str(raw).map_err(|e| e.to_string())?;
+    if let Some(errors) = value["errors"].as_array()
+        && let Some(error) = errors.first()
+    {
+        let message = error["message"]
+            .as_str()
+            .unwrap_or("Unknown provider error");
+        if message.starts_with("AA_CRYPTO_") {
+            return Err("The provider has changed its playback requirements. Episode streams are currently unavailable; the provider integration needs an update.".into());
+        }
+        return Err(format!("Provider request failed: {message}"));
+    }
+    Ok(())
+}
+
+fn provider_status_error(status: StatusCode) -> Option<String> {
+    if status == StatusCode::FORBIDDEN {
+        return Some(
+            "Provider blocked by Cloudflare challenge (403 Forbidden). Try again later or use a different network."
+                .to_string(),
+        );
+    }
+
+    None
 }
 
 #[async_trait::async_trait]
@@ -81,7 +117,40 @@ impl ProviderRuntime for AllAnimeProvider {
             "translationType": if prefer_sub { "sub" } else { "dub" },
             "episodeString": episode.to_string()
         });
-        let body = self.gql_request(variables, STREAMS_GQL).await?;
+        let mut response = Err("Could not resolve episode sources".to_owned());
+        // Fetch current first-party bootstrap data on each attempt. A deployment
+        // can rotate between the bootstrap and the episode request; retry once.
+        for _ in 0..2 {
+            let session = crypto::bootstrap(&self.client).await?;
+            let extensions = session.extensions(STREAMS_GQL, crypto::now_ms()?)?;
+            let result = self
+                .client
+                .get(format!("{ALLANIME_API}/api"))
+                .header("Referer", ALLANIME_REFERER)
+                .header("Origin", ORIGIN)
+                .header("x-build-id", &session.build)
+                .query(&[
+                    ("query", STREAMS_GQL.to_owned()),
+                    ("variables", variables.to_string()),
+                    ("extensions", extensions.to_string()),
+                ])
+                .send()
+                .await
+                .map_err(|e| e.to_string())?
+                .error_for_status()
+                .map_err(|e| e.to_string())?
+                .text()
+                .await
+                .map_err(|e| e.to_string())?;
+            response = session.decode(&result).and_then(|body| {
+                validate_graphql_response(&body)?;
+                Ok(body)
+            });
+            if response.is_ok() {
+                break;
+            }
+        }
+        let body = response?;
 
         let streams = parse_stream_candidates(&body, prefer_sub)?;
         Ok(expand_streams_with_fetch(streams, |url| async move {
@@ -110,32 +179,98 @@ where
     Fut: std::future::Future<Output = Result<String, String>>,
 {
     let mut expanded = Vec::new();
-    for s in streams {
-        if s.url.contains("/clock.json") || s.url.contains("/clock?") {
-            let Ok(payload) = fetch_payload(s.url.clone()).await else {
-                // Provider clock endpoints can intermittently 500; skip and let fallback continue.
+    let mp4_pattern = regex::Regex::new(r#"(?:src|file)\s*:\s*["'](https?://[^"']+)["']"#).unwrap();
+    for stream in streams {
+        if stream.provider == "mp4upload" {
+            let Ok(payload) = fetch_payload(stream.url.clone()).await else {
                 continue;
             };
-
-            let urls = parse_provider_payload_links(&payload);
-            if urls.is_empty() {
-                continue;
-            }
-
-            for url in urls {
+            if let Some(captures) = mp4_pattern.captures(&payload) {
                 expanded.push(StreamCandidate {
-                    provider: s.provider.clone(),
-                    url,
-                    is_sub: s.is_sub,
-                    resolution: s.resolution,
+                    url: captures[1].to_owned(),
+                    ..stream
                 });
             }
-            continue;
+        } else if stream.url.contains("/clock.json") || stream.url.contains("/clock?") {
+            let Ok(payload) = fetch_payload(stream.url.clone()).await else {
+                continue;
+            };
+            if let Ok(value) = serde_json::from_str::<Value>(&payload) {
+                collect_payload_streams(&value, &stream, &mut expanded);
+            }
+        } else if playable_url(&stream.url) {
+            expanded.push(stream);
         }
-        expanded.push(s);
     }
-
     expanded
+}
+
+fn collect_payload_streams(
+    value: &Value,
+    stream: &StreamCandidate,
+    output: &mut Vec<StreamCandidate>,
+) {
+    match value {
+        Value::Object(map) => {
+            let mut template = stream.clone();
+            if let Some(referrer) = value["headers"]["Referer"]
+                .as_str()
+                .filter(|url| playable_url(url))
+            {
+                template.referrer = Some(referrer.into());
+            }
+            if let Some(resolution) = value["resolutionStr"]
+                .as_str()
+                .and_then(|s| s.trim_end_matches('p').parse().ok())
+            {
+                template.resolution = Some(resolution);
+            }
+            for url in [value["link"].as_str(), value["hls"]["url"].as_str()]
+                .into_iter()
+                .flatten()
+            {
+                for url in expand_wix_url(url)
+                    .into_iter()
+                    .filter(|url| playable_url(url))
+                {
+                    output.push(StreamCandidate {
+                        url,
+                        ..template.clone()
+                    });
+                }
+            }
+            for child in map.values() {
+                collect_payload_streams(child, &template, output);
+            }
+        }
+        Value::Array(items) => {
+            for child in items {
+                collect_payload_streams(child, stream, output);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn playable_url(url: &str) -> bool {
+    reqwest::Url::parse(url)
+        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
+}
+
+fn expand_wix_url(url: &str) -> Vec<String> {
+    let Some(unwrapped) = url.strip_prefix("https://repackager.wixmp.com/") else {
+        return vec![url.into()];
+    };
+    let base = unwrapped.split(".urlset").next().unwrap_or(unwrapped);
+    let pieces: Vec<_> = base.split(',').collect();
+    if pieces.len() < 3 {
+        return vec![url.into()];
+    }
+    pieces[1..pieces.len() - 1]
+        .iter()
+        .filter(|quality| !quality.is_empty())
+        .map(|quality| format!("{}{quality}{}", pieces[0], pieces[pieces.len() - 1]))
+        .collect()
 }
 
 pub fn parse_search_titles(raw: &str) -> Result<Vec<Title>, String> {
@@ -148,7 +283,8 @@ pub fn parse_search_titles(raw: &str) -> Result<Vec<Title>, String> {
     for edge in edges {
         let id = edge["_id"].as_str().ok_or("missing id")?.to_string();
         let name = edge["name"].as_str().ok_or("missing name")?.to_string();
-        out.push(Title { id, name });
+        let poster = edge["thumbnail"].as_str().map(str::to_owned);
+        out.push(Title { id, name, poster });
     }
     Ok(out)
 }
@@ -175,30 +311,47 @@ pub fn parse_stream_candidates(
     prefer_sub: bool,
 ) -> Result<Vec<StreamCandidate>, String> {
     let v: Value = serde_json::from_str(raw).map_err(|e| e.to_string())?;
+    if v["data"]["episode"].is_null() {
+        return Ok(Vec::new());
+    }
+
     let sources = v["data"]["episode"]["sourceUrls"]
         .as_array()
         .ok_or("missing sourceUrls")?;
 
     let mut out = Vec::new();
     for s in sources {
-        let name = s["sourceName"].as_str().ok_or("missing sourceName")?;
-        let raw_url = s["sourceUrl"].as_str().ok_or("missing sourceUrl")?;
+        let (Some(name), Some(raw_url)) = (s["sourceName"].as_str(), s["sourceUrl"].as_str())
+        else {
+            continue;
+        };
 
-        let provider = match name {
-            "Default" => "wixmp",
-            "Yt-mp4" => "youtube",
-            "S-mp4" => "sharepoint",
-            "Luf-Mp4" => "hianime",
+        let provider = match name.to_ascii_lowercase().as_str() {
+            "default" => "wixmp",
+            "yt-mp4" => "youtube",
+            "s-mp4" => "sharepoint",
+            "luf-mp4" => "hianime",
+            "uv-mp4" => "uv",
+            "ak" => "ak",
+            "mp4" => "mp4upload",
             _ => continue,
         }
         .to_string();
-
-        let url = decode_source_url(raw_url)?;
+        // A malformed source must not discard other working providers.
+        let Ok(url) = decode_source_url(raw_url) else {
+            continue;
+        };
+        let referrer = if provider == "mp4upload" {
+            "https://www.mp4upload.com/"
+        } else {
+            ALLANIME_REFERER
+        };
         out.push(StreamCandidate {
             provider,
             url,
             is_sub: prefer_sub,
             resolution: None,
+            referrer: Some(referrer.into()),
         });
     }
 
@@ -209,7 +362,7 @@ pub fn decode_source_url(raw_url: &str) -> Result<String, String> {
     if let Some(hex) = raw_url.strip_prefix("--") {
         return decode_obfuscated(hex).map(|url| normalize_decoded_url(&url));
     }
-    Ok(raw_url.to_string())
+    Ok(normalize_decoded_url(raw_url))
 }
 
 pub fn parse_provider_payload_links(raw: &str) -> Vec<String> {
@@ -247,123 +400,59 @@ fn collect_links_recursive(value: &Value, links: &mut Vec<String>) {
 }
 
 fn normalize_decoded_url(decoded: &str) -> String {
-    let fixed_clock = decoded.replace("/clock", "/clock.json");
-    if fixed_clock.starts_with("http://") || fixed_clock.starts_with("https://") {
-        return fixed_clock;
+    let base = reqwest::Url::parse(&format!("https://{ALLANIME_BASE}/")).unwrap();
+    let Ok(mut url) = base.join(decoded) else {
+        return decoded.into();
+    };
+    if url.path().ends_with("/clock") {
+        url.set_path(&format!("{}.json", url.path()));
     }
-    format!("https://{ALLANIME_BASE}{fixed_clock}")
+    url.into()
 }
 
 fn decode_obfuscated(hex: &str) -> Result<String, String> {
-    if !hex.len().is_multiple_of(2) {
-        return Err("invalid encoded source length".to_string());
+    if !hex.len().is_multiple_of(2) || !hex.is_ascii() {
+        return Err("invalid encoded source length".into());
     }
-
-    let mut out = String::with_capacity(hex.len() / 2);
-    let mut i = 0;
-    while i < hex.len() {
-        let part = &hex[i..i + 2];
-        out.push(decode_pair(part)?);
-        i += 2;
-    }
-    Ok(out)
-}
-
-fn decode_pair(pair: &str) -> Result<char, String> {
-    let c = match pair {
-        "79" => 'A',
-        "7a" => 'B',
-        "7b" => 'C',
-        "7c" => 'D',
-        "7d" => 'E',
-        "7e" => 'F',
-        "7f" => 'G',
-        "70" => 'H',
-        "71" => 'I',
-        "72" => 'J',
-        "73" => 'K',
-        "74" => 'L',
-        "75" => 'M',
-        "76" => 'N',
-        "77" => 'O',
-        "68" => 'P',
-        "69" => 'Q',
-        "6a" => 'R',
-        "6b" => 'S',
-        "6c" => 'T',
-        "6d" => 'U',
-        "6e" => 'V',
-        "6f" => 'W',
-        "60" => 'X',
-        "61" => 'Y',
-        "62" => 'Z',
-        "59" => 'a',
-        "5a" => 'b',
-        "5b" => 'c',
-        "5c" => 'd',
-        "5d" => 'e',
-        "5e" => 'f',
-        "5f" => 'g',
-        "50" => 'h',
-        "51" => 'i',
-        "52" => 'j',
-        "53" => 'k',
-        "54" => 'l',
-        "55" => 'm',
-        "56" => 'n',
-        "57" => 'o',
-        "48" => 'p',
-        "49" => 'q',
-        "4a" => 'r',
-        "4b" => 's',
-        "4c" => 't',
-        "4d" => 'u',
-        "4e" => 'v',
-        "4f" => 'w',
-        "40" => 'x',
-        "41" => 'y',
-        "42" => 'z',
-        "08" => '0',
-        "09" => '1',
-        "0a" => '2',
-        "0b" => '3',
-        "0c" => '4',
-        "0d" => '5',
-        "0e" => '6',
-        "0f" => '7',
-        "00" => '8',
-        "01" => '9',
-        "15" => '-',
-        "16" => '.',
-        "67" => '_',
-        "46" => '~',
-        "02" => ':',
-        "17" => '/',
-        "07" => '?',
-        "1b" => '#',
-        "63" => '[',
-        "65" => ']',
-        "78" => '@',
-        "19" => '!',
-        "1c" => '$',
-        "1e" => '&',
-        "10" => '(',
-        "11" => ')',
-        "12" => '*',
-        "13" => '+',
-        "14" => ',',
-        "03" => ';',
-        "05" => '=',
-        "1d" => '%',
-        _ => return Err(format!("unknown encoded byte: {pair}")),
-    };
-    Ok(c)
+    let bytes = hex
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let pair = std::str::from_utf8(pair).map_err(|_| "invalid source encoding")?;
+            u8::from_str_radix(pair, 16)
+                .map(|byte| byte ^ 0x38)
+                .map_err(|_| "invalid source encoding")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    String::from_utf8(bytes).map_err(|_| "invalid source encoding".into())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::expand_streams_with_fetch;
+    use super::{
+        collect_payload_streams, decode_source_url, expand_streams_with_fetch,
+        parse_stream_candidates, provider_status_error, validate_graphql_response,
+    };
     use crate::core::models::StreamCandidate;
+    use reqwest::StatusCode;
+
+    #[test]
+    fn reports_graphql_rejections_instead_of_silently_returning_no_streams() {
+        let error = validate_graphql_response(
+            r#"{"errors":[{"message":"AA_CRYPTO_MISSING"}],"data":{"episode":null}}"#,
+        )
+        .unwrap_err();
+        assert!(error.contains("playback requirements"));
+        assert!(validate_graphql_response(r#"{"data":{"episode":null}}"#).is_ok());
+    }
+
+    #[test]
+    fn explains_cloudflare_forbidden_provider_response() {
+        assert_eq!(
+            provider_status_error(StatusCode::FORBIDDEN),
+            Some("Provider blocked by Cloudflare challenge (403 Forbidden). Try again later or use a different network.".to_string())
+        );
+    }
 
     #[tokio::test]
     async fn skips_failed_clock_source_and_keeps_other_candidates() {
@@ -373,12 +462,14 @@ mod tests {
                 url: "https://allanime.day/apivtwo/clock.json?id=bad".to_string(),
                 is_sub: true,
                 resolution: None,
+                referrer: None,
             },
             StreamCandidate {
                 provider: "youtube".to_string(),
                 url: "https://tools.fast4speed.rsvp/video.mp4".to_string(),
                 is_sub: true,
                 resolution: None,
+                referrer: None,
             },
         ];
 
@@ -389,5 +480,62 @@ mod tests {
 
         assert_eq!(expanded.len(), 1);
         assert_eq!(expanded[0].provider, "youtube");
+    }
+    #[test]
+    fn normalizes_clock_paths_once_and_handles_bad_encodings() {
+        let url = "https://allanime.day/apivtwo/clock.json?id=42";
+        assert_eq!(decode_source_url(url).unwrap(), url);
+        assert_eq!(decode_source_url("/apivtwo/clock?id=42").unwrap(), url);
+        assert!(decode_source_url("--é").is_err());
+        assert!(decode_source_url("--zz").is_err());
+        let raw = r#"{"data":{"episode":{"sourceUrls":[{"sourceName":"Default","sourceUrl":null},{"sourceName":"Default","sourceUrl":"--zz"},{"sourceName":"S-Mp4","sourceUrl":"https://example.com/video.mp4"}]}}}"#;
+        let candidates = parse_stream_candidates(raw, true).unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].provider, "sharepoint");
+    }
+
+    #[test]
+    fn expands_clock_quality_paths_and_preserves_media_headers() {
+        let source = StreamCandidate {
+            provider: "wixmp".into(),
+            url: "https://allanime.day/apivtwo/clock.json".into(),
+            is_sub: true,
+            resolution: None,
+            referrer: None,
+        };
+        let payload = serde_json::json!({"links":[
+            {"link":"javascript:bad"},
+            {"link":"https://cdn.example/video.m3u8","headers":{"Referer":"https://player.example/"},"resolutionStr":"1080p"},
+            {"link":"https://repackager.wixmp.com/https://cdn.example/,720p,1080p,/video.mp4.urlset/master.m3u8"}
+        ]});
+        let mut streams = vec![];
+        collect_payload_streams(&payload, &source, &mut streams);
+        assert_eq!(streams.len(), 3);
+        assert_eq!(
+            streams[0].referrer.as_deref(),
+            Some("https://player.example/")
+        );
+        assert_eq!(streams[0].resolution, Some(1080));
+        assert_eq!(streams[2].url, "https://cdn.example/1080p/video.mp4");
+    }
+
+    #[tokio::test]
+    async fn resolves_mp4upload_page_into_video_and_keeps_referrer() {
+        let source = StreamCandidate {
+            provider: "mp4upload".into(),
+            url: "https://www.mp4upload.com/embed-abc.html".into(),
+            is_sub: true,
+            resolution: None,
+            referrer: Some("https://www.mp4upload.com/".into()),
+        };
+        let resolved = expand_streams_with_fetch(vec![source], |_| async {
+            Ok("player({src: \"https://cdn.example/video.mp4\"})".into())
+        })
+        .await;
+        assert_eq!(resolved[0].url, "https://cdn.example/video.mp4");
+        assert_eq!(
+            resolved[0].referrer.as_deref(),
+            Some("https://www.mp4upload.com/")
+        );
     }
 }
