@@ -1,8 +1,10 @@
-# Ayoru
+# ayoru CLI
 
 `ayoru` is a terminal-first anime watcher built around a keyboard-driven TUI.
 
 It lets you search a show, pick an episode, resolve a stream, and open playback in a local player without bouncing between browser tabs and ad-heavy sites.
+
+The native macOS desktop app lives on [`main`](https://github.com/BrandonLee28/ayoru). This branch preserves the terminal version.
 
 ## Why Use It
 
@@ -27,13 +29,13 @@ Before installing, make sure you have:
 ### One-command install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BrandonLee28/ayoru/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/BrandonLee28/ayoru/cli/scripts/install.sh | sh
 ```
 
 What this does:
 
 - installs `ayoru` to `~/.local/bin/ayoru`
-- uses the rolling `alpha` GitHub Release built from `main`
+- uses the rolling `cli-alpha` GitHub Release built from `cli`
 - falls back to a source build if a release artifact is missing
 - adds `~/.local/bin` to your shell `PATH` if needed
 
@@ -47,7 +49,7 @@ ayoru --version
 ### Install from source with Cargo
 
 ```bash
-git clone https://github.com/BrandonLee28/ayoru.git
+git clone --branch cli https://github.com/BrandonLee28/ayoru.git
 cd ayoru
 cargo install --path .
 ```
@@ -113,7 +115,7 @@ command -v ayoru
 
 ### The installer falls back to building from source
 
-That is expected when a matching `alpha` release artifact is unavailable for your platform. In that case the installer uses `cargo build --release`, so Rust and Cargo must be installed.
+That is expected when a matching `cli-alpha` release artifact is unavailable for your platform. In that case the installer uses `cargo build --release`, so Rust and Cargo must be installed.
 
 ### Playback does not start
 
@@ -185,19 +187,19 @@ The installer expects release artifacts to use these names:
 
 ## Maintainer Release Flow
 
-Pushes to `main` refresh the rolling `alpha` release used by the installer by default.
+Pushes to `cli` refresh the rolling `cli-alpha` release used by the installer by default.
 
 Push a version tag when you want a versioned release:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag cli-v0.1.2
+git push origin cli-v0.1.2
 ```
 
 The GitHub Actions workflow publishes both:
 
-- a rolling `alpha` prerelease from `main`
-- versioned releases for `v0.1.x` tags
+- a rolling `cli-alpha` prerelease from `cli`
+- versioned releases for `cli-v0.1.x` tags
 
 ## Notes
 

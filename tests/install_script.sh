@@ -23,7 +23,7 @@ assert_eq "$(asset_name darwin arm64)" "ayoru-darwin-aarch64.tar.gz"
 assert_eq "$(asset_name linux x86_64)" "ayoru-linux-x86_64.tar.gz"
 assert_eq \
     "$(release_download_url)" \
-    "https://github.com/BrandonLee28/ayoru/releases/download/alpha/ayoru-$(normalize_os "$(uname -s)")-$(normalize_arch "$(uname -m)").tar.gz"
+    "https://github.com/BrandonLee28/ayoru/releases/download/cli-alpha/ayoru-$(normalize_os "$(uname -s)")-$(normalize_arch "$(uname -m)").tar.gz"
 assert_eq \
     "$(release_asset_url v0.1.0 darwin arm64)" \
     "https://github.com/BrandonLee28/ayoru/releases/download/v0.1.0/ayoru-darwin-aarch64.tar.gz"
@@ -59,15 +59,21 @@ case "$unsupported_output" in
 esac
 
 local_repo=$(mktemp -d)
-mkdir -p "$local_repo/.git"
+mkdir -p "$local_repo/.git" "$local_repo/src/tui"
 touch "$local_repo/Cargo.toml"
 assert_eq "$(repo_source_dir "$local_repo")" "$local_repo"
 worktree_repo=$(mktemp -d)
+mkdir -p "$worktree_repo/src/tui"
 touch "$worktree_repo/.git"
 touch "$worktree_repo/Cargo.toml"
 assert_eq "$(repo_source_dir "$worktree_repo")" "$worktree_repo"
 assert_eq "$(script_dir_for_path ./scripts/install.sh /worktree)" "/worktree/scripts"
 assert_eq "$(repo_clone_url)" "https://github.com/BrandonLee28/ayoru.git"
+rmdir "$local_repo/src/tui"
+if repo_source_dir "$local_repo" >/dev/null; then
+    echo "CLI installer must reject a desktop checkout" >&2
+    exit 1
+fi
 rm -rf "$local_repo"
 rm -rf "$worktree_repo"
 
@@ -188,7 +194,7 @@ fallback_output=$(
 )
 
 case "$fallback_output" in
-    *"Release install for alpha unavailable, falling back to source build."*)
+    *"Release install for cli-alpha unavailable, falling back to source build."*)
         ;;
     *)
         printf 'expected fallback message, got: %s\n' "$fallback_output" >&2
@@ -207,3 +213,5 @@ test -x "$fallback_install_dir/ayoru"
 assert_eq "$("$fallback_install_dir/ayoru")" "ayoru 0.1.1"
 
 printf 'install helper tests passed\n'
+
+grep -Fq -- "git clone --depth 1 --branch cli" "$REPO_ROOT/scripts/install.sh"

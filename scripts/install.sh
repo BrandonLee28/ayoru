@@ -4,7 +4,7 @@ set -eu
 
 REPO_SLUG=${AYORU_REPO_SLUG:-BrandonLee28/ayoru}
 DEFAULT_INSTALL_DIR=${AYORU_INSTALL_DIR:-"$HOME/.local/bin"}
-DEFAULT_RELEASE_VERSION=${AYORU_RELEASE_VERSION:-alpha}
+DEFAULT_RELEASE_VERSION=${AYORU_RELEASE_VERSION:-cli-alpha}
 
 normalize_arch() {
     case "$1" in
@@ -105,7 +105,7 @@ append_path_if_missing() {
 repo_source_dir() {
     candidate=$1
 
-    if [ -e "$candidate/.git" ] && [ -f "$candidate/Cargo.toml" ]; then
+    if [ -e "$candidate/.git" ] && [ -f "$candidate/Cargo.toml" ] && [ -d "$candidate/src/tui" ]; then
         printf '%s\n' "$candidate"
         return 0
     fi
@@ -245,7 +245,7 @@ install_from_source() {
 
     tmpdir=$(mktemp -d)
     trap 'rm -rf "$tmpdir"' EXIT INT TERM
-    git clone --depth 1 "$(repo_clone_url)" "$tmpdir/repo" >/dev/null 2>&1
+    git clone --depth 1 --branch cli "$(repo_clone_url)" "$tmpdir/repo" >/dev/null 2>&1
     build_from_repo "$tmpdir/repo" "$install_dir"
 }
 
