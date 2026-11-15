@@ -40,12 +40,16 @@ impl AllAnimeProvider {
         validate_health_response(&body)
     }
 
-    async fn gql_request(&self, variables: Value, query: &str) -> Result<String, String> {
-        let response = self
-            .client
+    fn build_gql_request(&self, variables: Value, query: &str) -> reqwest::RequestBuilder {
+        self.client
             .post(format!("{ALLANIME_API}/api"))
             .header("Referer", ALLANIME_REFERER)
             .json(&json!({"query": query, "variables": variables}))
+    }
+
+    async fn gql_request(&self, variables: Value, query: &str) -> Result<String, String> {
+        let response = self
+            .build_gql_request(variables, query)
             .send()
             .await
             .map_err(|e| e.to_string())?;
@@ -565,6 +569,42 @@ mod tests {
         assert_eq!(
             resolved[0].referrer.as_deref(),
             Some("https://www.mp4upload.com/")
+        );
+    }
+    #[tokio::test]
+    async fn gql_requests_use_post_json_payload() {
+        let provider = super::AllAnimeProvider::new();
+
+        let request = provider
+            .build_gql_request(serde_json::json!({ "showId": "demo" }), super::SEARCH_GQL)
+            .build()
+            .expect("build request");
+
+        assert_eq!(request.method(), reqwest::Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            &format!("{}/api", super::ALLANIME_API)
+        );
+        assert_eq!(
+            request.headers()["referer"],
+            reqwest::header::HeaderValue::from_static(super::ALLANIME_REFERER)
+        );
+        assert_eq!(
+            request.headers()["content-type"],
+            reqwest::header::HeaderValue::from_static("application/json")
+        );
+
+        let body = request
+            .body()
+            .and_then(reqwest::Body::as_bytes)
+            .expect("json body bytes");
+        let actual: serde_json::Value = serde_json::from_slice(body).expect("valid json body");
+        assert_eq!(
+            actual,
+            serde_json::json!({
+                "query": super::SEARCH_GQL,
+                "variables": { "showId": "demo" }
+            })
         );
     }
 }
