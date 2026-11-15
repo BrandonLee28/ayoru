@@ -15,8 +15,20 @@ Search a title, choose an episode, and watch in the same window. Keep favorites 
 > ayoru is in active development. Playback depends on third-party providers, and some streams may be unavailable.
 
 <p align="center">
-  <img src="assets/screenshots/library.png" alt="ayoru desktop showing Watch Now, recently watched episodes, and the library sidebar" width="960">
+  <img src="assets/screenshots/search.png" alt="ayoru desktop showing anime search results in a poster grid with the library sidebar" width="960">
 </p>
+
+<details>
+<summary>More screenshots — playback and library</summary>
+
+<p align="center">
+  <img src="assets/screenshots/playback.png" alt="ayoru playing an episode inside the window with native video controls and episode selection" width="960">
+</p>
+<p align="center">
+  <img src="assets/screenshots/library.png" alt="Watch Now with recently watched episodes and the library sidebar" width="960">
+</p>
+
+</details>
 
 ## Use ayoru
 
