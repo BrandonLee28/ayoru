@@ -14,6 +14,10 @@ Search a title, choose an episode, and watch in the same window. Keep favorites 
 > [!NOTE]
 > ayoru is in active development. Playback depends on third-party providers, and some streams may be unavailable.
 
+<p align="center">
+  <img src="assets/screenshots/library.png" alt="ayoru desktop showing Watch Now, recently watched episodes, and the library sidebar" width="960">
+</p>
+
 ## Use ayoru
 
 ### Download the desktop app
